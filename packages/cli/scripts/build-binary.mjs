@@ -17,8 +17,11 @@
  */
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+const require = createRequire(import.meta.url)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const cliRoot = resolve(__dirname, '..')
@@ -81,8 +84,12 @@ function copyNodeBinary(target) {
 
 function injectBlob(target, dest) {
   console.log('→ injecting SEA blob with postject')
+  // Resolve postject's CLI script and run it with the current node directly.
+  // Avoids npx (which is `npx.cmd` on Windows and trips spawnSync) and any
+  // shell-quoting hazard around the file paths.
+  const postjectCli = require.resolve('postject/dist/cli.js')
   const args = [
-    'postject',
+    postjectCli,
     dest,
     'NODE_SEA_BLOB',
     blobPath,
@@ -92,7 +99,7 @@ function injectBlob(target, dest) {
   if (target.os === 'darwin') {
     args.push('--macho-segment-name', 'NODE_SEA')
   }
-  run('npx', ['--yes', ...args])
+  run(process.execPath, args)
 }
 
 function adhocSignDarwin(dest) {
