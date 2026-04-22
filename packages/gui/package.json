@@ -1,0 +1,101 @@
+{
+  "name": "@sweatrelay/gui",
+  "version": "0.1.0-dev",
+  "private": true,
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
+    "package": "pnpm run build && electron-builder --publish=never",
+    "release": "pnpm run build && electron-builder --publish=always"
+  },
+  "dependencies": {
+    "@fontsource-variable/hanken-grotesk": "^5.1.0",
+    "@fontsource-variable/jetbrains-mono": "^5.1.0",
+    "@fontsource/bebas-neue": "^5.1.0",
+    "@napi-rs/keyring": "^1.1.0",
+    "@radix-ui/react-accordion": "^1.2.0",
+    "@radix-ui/react-dialog": "^1.1.0",
+    "@radix-ui/react-label": "^2.1.0",
+    "@radix-ui/react-progress": "^1.1.0",
+    "@radix-ui/react-scroll-area": "^1.2.0",
+    "@radix-ui/react-separator": "^1.1.0",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-switch": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.0",
+    "@radix-ui/react-tooltip": "^1.1.0",
+    "@sweatrelay/adapter-blackbird": "workspace:*",
+    "@sweatrelay/adapter-folder": "workspace:*",
+    "@sweatrelay/adapter-magene": "workspace:*",
+    "@sweatrelay/adapter-onelap": "workspace:*",
+    "@sweatrelay/core": "workspace:*",
+    "@tanstack/react-router": "^1.95.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "electron-updater": "^6.3.0",
+    "jotai": "^2.10.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sonner": "^1.7.0",
+    "tailwind-merge": "^2.5.0",
+    "tw-animate-css": "^1.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@tanstack/router-plugin": "^1.95.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "^40.0.0",
+    "electron-builder": "^25.1.0",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.0.0",
+    "vite": "^7.0.0"
+  },
+  "build": {
+    "appId": "com.sweatrelay.app",
+    "productName": "SweatRelay",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "publish": {
+      "provider": "github",
+      "owner": "xxxxxccc",
+      "repo": "SweatRelay",
+      "releaseType": "release"
+    },
+    "mac": {
+      "category": "public.app-category.healthcare-fitness",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}

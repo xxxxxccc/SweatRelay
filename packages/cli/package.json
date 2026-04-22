@@ -1,0 +1,27 @@
+{
+  "name": "@sweatrelay/cli",
+  "version": "0.1.0-dev",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "sweatrelay": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "bundle": "node scripts/bundle.mjs",
+    "build:binary": "node scripts/build-binary.mjs"
+  },
+  "dependencies": {
+    "@sweatrelay/adapter-blackbird": "workspace:*",
+    "@sweatrelay/adapter-folder": "workspace:*",
+    "@sweatrelay/adapter-magene": "workspace:*",
+    "@sweatrelay/adapter-onelap": "workspace:*",
+    "@sweatrelay/core": "workspace:*",
+    "cac": "^6.7.14"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "postject": "^1.0.0-alpha.6"
+  }
+}

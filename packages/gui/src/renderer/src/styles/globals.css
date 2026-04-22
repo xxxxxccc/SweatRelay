@@ -1,0 +1,177 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* ========================================================================
+ * SweatRelay — Race Telemetry theme
+ *
+ * Aesthetic: pro cycling team's data terminal. One bold accent (Strava
+ * orange) used sparingly. Warm-tinted near-black in dark mode, paper-warm
+ * off-white in light mode. Display type is condensed athletic; body is
+ * humanist; numbers are tabular monospace.
+ * ====================================================================== */
+
+/* Fonts: bundled via @fontsource — see main.tsx imports. No external CDN.
+ * Family names exposed by the variable packages:
+ *   - 'Hanken Grotesk Variable'
+ *   - 'JetBrains Mono Variable'
+ *   - 'Bebas Neue' (single-weight) */
+
+:root,
+[data-theme='light'] {
+  /* warm off-white paper */
+  --color-bg: oklch(98% 0.005 60);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-2: oklch(95.5% 0.008 60);
+  --color-fg: oklch(20% 0.01 30);
+  --color-fg-muted: oklch(48% 0.015 30);
+  --color-fg-subtle: oklch(62% 0.012 30);
+  --color-border: oklch(89% 0.01 60);
+  --color-border-strong: oklch(82% 0.013 60);
+
+  /* Strava orange #FC4C02 in oklch */
+  --color-accent: oklch(67% 0.215 41);
+  --color-accent-hover: oklch(63% 0.215 41);
+  --color-accent-fg: oklch(99% 0.005 60);
+
+  --color-success: oklch(58% 0.16 145);
+  --color-warning: oklch(72% 0.16 75);
+  --color-danger: oklch(58% 0.22 25);
+  --color-ring: oklch(67% 0.215 41 / 0.45);
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  /* deep warm-tinted near-black, like a night-mode car display */
+  --color-bg: oklch(13% 0.005 30);
+  --color-surface: oklch(17% 0.008 30);
+  --color-surface-2: oklch(22% 0.01 30);
+  --color-fg: oklch(96% 0.01 60);
+  --color-fg-muted: oklch(68% 0.015 30);
+  --color-fg-subtle: oklch(50% 0.012 30);
+  --color-border: oklch(26% 0.012 30);
+  --color-border-strong: oklch(34% 0.014 30);
+
+  --color-accent: oklch(70% 0.215 41);
+  --color-accent-hover: oklch(74% 0.215 41);
+  --color-accent-fg: oklch(15% 0.01 30);
+
+  --color-success: oklch(72% 0.16 145);
+  --color-warning: oklch(80% 0.16 75);
+  --color-danger: oklch(68% 0.22 25);
+  --color-ring: oklch(70% 0.215 41 / 0.55);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-fg: var(--color-fg);
+  --color-fg-muted: var(--color-fg-muted);
+  --color-fg-subtle: var(--color-fg-subtle);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-fg: var(--color-accent-fg);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-ring: var(--color-ring);
+
+  --font-sans:
+    'Hanken Grotesk Variable', 'Hanken Grotesk', 'PingFang SC', 'Microsoft YaHei',
+    system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display:
+    'Bebas Neue', 'Hanken Grotesk Variable', 'Hanken Grotesk', 'PingFang SC',
+    system-ui, sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular,
+    'SF Mono', Menlo, monospace;
+
+  /* Micro labels (race-team telemetry stamps) — used everywhere for
+   * uppercase mono/display section markers. */
+  --text-micro: 0.625rem; /* 10px */
+  --text-mini: 0.6875rem; /* 11px */
+  --text-hero: 10rem; /* dashboard hero number */
+
+  --tracking-stamp: 0.18em;
+  --tracking-stamp-wide: 0.22em;
+  --tracking-stamp-mono: 0.2em;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-pulse-slow: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  font-weight: 400;
+}
+
+.tabular,
+table,
+.font-mono,
+[class*="font-display"] {
+  font-variant-numeric: tabular-nums;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+}
+
+::selection {
+  background-color: color-mix(in oklab, var(--color-accent) 35%, transparent);
+}
+
+@utility app-region-drag {
+  -webkit-app-region: drag;
+}
+@utility app-region-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-accent) 70%, var(--color-border));
+}

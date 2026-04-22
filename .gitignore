@@ -1,0 +1,26 @@
+node_modules
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# build / cache
+dist
+.cache
+.turbo
+.tsbuildinfo
+coverage
+out
+release
+build
+.tanstack
+
+# runtime data (don't commit secrets)
+.sweatrelay/
+creds.enc
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/

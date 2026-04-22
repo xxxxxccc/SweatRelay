@@ -1,0 +1,108 @@
+name: Release
+
+# Triggered by `vX.Y.Z` tags. Builds CLI binaries + GUI installers and publishes
+# them to a GitHub Release. electron-builder uses `publish: github` so the GUI
+# also uploads its `latest*.yml` files needed by electron-updater.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  cli:
+    name: CLI ${{ matrix.target_os }}-${{ matrix.target_arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target_os: darwin
+            target_arch: arm64
+          - os: windows-latest
+            target_os: windows
+            target_arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sweatrelay/cli run bundle
+      - run: pnpm --filter @sweatrelay/cli run build:binary
+      - name: Attach binary to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/cli/dist/sweatrelay-${{ matrix.target_os }}-${{ matrix.target_arch }}*
+
+  gui:
+    name: GUI ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sweatrelay/gui run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  homebrew:
+    name: Publish Homebrew formula
+    needs: cli
+    runs-on: ubuntu-latest
+    # Skipped until the user opts in by setting repo variable HOMEBREW_ENABLED=true
+    # AND adding HOMEBREW_TAP_TOKEN secret with `contents: write` on the tap repo
+    # (xxxxxccc/homebrew-sweatrelay). See docs/homebrew-tap.md.
+    if: ${{ vars.HOMEBREW_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Download darwin-arm64 binary from this release
+        run: |
+          curl -fsSL -o sweatrelay-darwin-arm64 \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/sweatrelay-darwin-arm64"
+      - name: Compute sha256
+        id: sha
+        run: echo "sha256=$(shasum -a 256 sweatrelay-darwin-arm64 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - name: Patch formula
+        run: |
+          sed -i \
+            -e 's|version "[^"]*"|version "${{ steps.ver.outputs.version }}"|' \
+            -e 's|REPLACE_DARWIN_ARM64_SHA|${{ steps.sha.outputs.sha256 }}|' \
+            scripts/homebrew/sweatrelay.rb
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: xxxxxccc/homebrew-sweatrelay
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Copy formula and push
+        run: |
+          mkdir -p tap/Formula
+          cp scripts/homebrew/sweatrelay.rb tap/Formula/sweatrelay.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/sweatrelay.rb
+          git commit -m "sweatrelay ${{ steps.ver.outputs.version }}" || exit 0
+          git push

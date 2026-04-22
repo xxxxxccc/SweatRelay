@@ -1,0 +1,25 @@
+{
+  "name": "sweatrelay",
+  "version": "0.1.0-dev",
+  "private": true,
+  "description": "Bridge Chinese cycling platforms (Onelap, etc.) to Strava",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "pnpm -r --parallel run typecheck",
+    "test": "pnpm -r --parallel run test",
+    "cli": "pnpm --filter @sweatrelay/cli start"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

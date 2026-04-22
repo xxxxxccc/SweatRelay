@@ -1,0 +1,21 @@
+{
+  "name": "@sweatrelay/adapter-onelap",
+  "version": "0.1.0-dev",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sweatrelay/adapter-folder": "workspace:*",
+    "@sweatrelay/core": "workspace:*",
+    "undici": "^7.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}
