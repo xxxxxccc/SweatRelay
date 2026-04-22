@@ -9,7 +9,7 @@ node_modules
 dist
 .cache
 .turbo
-.tsbuildinfo
+*.tsbuildinfo
 coverage
 out
 release
