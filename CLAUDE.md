@@ -59,11 +59,11 @@ These are locked decisions from the user. Do not re-litigate or ignore.
 
 ### Updates & releases
 - GUI auto-update: **electron-updater + GitHub Releases provider**. `package.json build.publish.owner` = `xxxxxccc`.
-- CI workflows:
-  - `ci.yml` — every PR: lint + typecheck + test
-  - `main-build.yml` — every push to main: build all binaries, replace assets on `nightly` rolling pre-release
-  - `release.yml` — `vX.Y.Z` tag: same artifacts, on the proper release
-- Don't gate auto-build behind tags. Don't delete `main-build.yml`.
+- CI workflows (only two — keep it that way):
+  - `ci.yml` — every push / PR: lint + typecheck + test
+  - `release.yml` — `vX.Y.Z` tag: build CLI binaries (mac arm64 + win x64) + GUI installers (.dmg + .exe), upload to GitHub Release, optionally push Homebrew formula
+- **Build only on tags.** No `main-build.yml` / `nightly.yml`. To cut a nightly: `git tag v0.3.0-nightly.YYYYMMDD && git push --tags`.
+- `pnpm/action-setup@v4` — do NOT pass `version:` in workflow steps. The package.json `packageManager` field is the single source of truth; passing both fails with `ERR_PNPM_BAD_PM_VERSION`.
 
 ### Agent integration
 - **No MCP server.** AI agents drive the CLI via [SKILL.md](./SKILL.md). Don't propose adding an MCP server.
@@ -73,7 +73,7 @@ These are locked decisions from the user. Do not re-litigate or ignore.
 ```
 SweatRelay/
 ├── biome.json, tsconfig.base.json, pnpm-workspace.yaml, package.json
-├── .github/workflows/{ci,main-build,release}.yml
+├── .github/workflows/{ci,release}.yml
 ├── scripts/
 │   ├── install.sh, install.ps1
 │   └── homebrew/sweatrelay.rb

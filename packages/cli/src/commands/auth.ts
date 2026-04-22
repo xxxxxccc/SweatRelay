@@ -13,8 +13,8 @@ export async function authStrava(): Promise<void> {
     },
   })
   await ctx.credentials.set(STRAVA_TOKENS_CRED_KEY, JSON.stringify(tokens))
-  console.log(`✓ Strava 授权成功（athlete: ${tokens.athleteId ?? 'unknown'}）`)
-  console.log(`  Token 已加密保存到 ${ctx.credsPath}`)
+  console.log(`✓ Strava 授权成功（运动员: ${tokens.athleteId ?? '未知'}）`)
+  console.log(`  连接信息已加密保存到 ${ctx.credsPath}`)
 }
 
 export async function authOnelap(): Promise<void> {

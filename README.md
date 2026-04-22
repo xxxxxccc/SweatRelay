@@ -2,17 +2,15 @@
 
 把国内不支持 Strava 同步的骑行平台数据，自动同步到 Strava。
 
-> Onelap（顽鹿运动）于 2026-03-19 关停了官方 Strava 集成。本项目是该断点的替代方案。同时也是个通用桥：任何能导出 FIT/GPX/TCX 的设备/平台都能用。
-
 [![CI](https://github.com/xxxxxccc/SweatRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/xxxxxccc/SweatRelay/actions/workflows/ci.yml)
 
 ## 它能做什么
 
 - **Onelap → Strava**：用账号密码自动拉取今日骑行
-- **任意码表 → Strava**：监听一个文件夹，新落地的 FIT/GPX/TCX 自动上传
-- **定时拉取**：cron 表达式定期同步
+- **任意码表 → Strava**：监控一个文件夹，新增的 FIT/GPX/TCX 自动上传
+- **定时拉取**：GUI 里挑频率（每 15 分钟 / 每小时…）；CLI 支持 cron 表达式
 - **重复检测**：本地 hash + Strava 服务端 `external_id` 双保险，重复上传不会真重复
-- **加密凭证**：所有 token 用 AES-256-GCM + scrypt 加密在本地
+- **加密存储**：所有连接信息用 AES-256-GCM + scrypt 加密在本地（支持 OS 钥匙串）
 
 ## 安装
 
@@ -95,11 +93,13 @@ monorepo（pnpm workspace）：
 
 ```
 packages/
-├── core/                 # @sweatrelay/core    — 唯一业务逻辑层
-├── adapter-folder/       # @sweatrelay/adapter-folder
-├── adapter-onelap/       # @sweatrelay/adapter-onelap
-├── cli/                  # @sweatrelay/cli     — Node SEA 单文件二进制
-└── gui/                  # @sweatrelay/gui     — Electron + React
+├── core/                 # @sweatrelay/core         — 唯一业务逻辑层
+├── adapter-folder/       # @sweatrelay/adapter-folder    — 通用文件夹源
+├── adapter-onelap/       # @sweatrelay/adapter-onelap    — Onelap API + folder 双实现
+├── adapter-magene/       # @sweatrelay/adapter-magene    — 迈金（文件导入）
+├── adapter-blackbird/    # @sweatrelay/adapter-blackbird — 黑鸟单车（文件导入）
+├── cli/                  # @sweatrelay/cli          — Node SEA 单文件二进制
+└── gui/                  # @sweatrelay/gui          — Electron 40 + React 19
 ```
 
 **核心抽象**（`@sweatrelay/core`）：
@@ -110,7 +110,7 @@ packages/
 - `CredentialStore` — `EncryptedFileCredentialStore`(AES-GCM + scrypt) / `MemoryCredentialStore`(测试)
 - `SyncPipeline` — 编排 trigger → adapter → upload → record
 
-**CLI 与 GUI 共享同一份 core**。CLI 是薄壳（cac framework），GUI 是 Electron main 进程跑 core + React 19 渲染层（TanStack Router 文件路由 + Jotai 共享状态 + Tailwind v4 + 自写 shadcn-style on Base UI）。
+**CLI 与 GUI 共享同一份 core**。CLI 是薄壳（cac framework），GUI 是 Electron main 进程跑 core + React 19 渲染层（TanStack Router 文件路由 + Jotai 共享状态 + Tailwind v4 + shadcn/ui + Race Telemetry 视觉风格）。
 
 ## 开发
 
@@ -155,8 +155,8 @@ pnpm --filter @sweatrelay/gui run package
 | GUI 模板 | electron-vite v5 + Vite 7 | Electron + React + ESM 现代栈 |
 | GUI 状态 | Jotai | 原子粒度订阅 |
 | GUI 路由 | TanStack Router (file-based) | 端到端类型安全 |
-| GUI 样式 | Tailwind v4 + Base UI | CSS-first 配置，自写 shadcn-style 组件 |
-| 二进制分发 | Node SEA + esbuild + postject | 官方原生方案，未来要用 `node:sqlite`，避开 native module 麻烦 |
+| GUI 样式 | Tailwind v4 + shadcn (Radix) | CSS-first 配置|
+| 二进制分发 | Node SEA + esbuild + postject | 官方原生方案 |
 | 自动升级 | electron-updater + GitHub Releases provider | 不依赖额外服务 |
 | 测试 | vitest + undici MockAgent | 快、ESM 友好 |
 

@@ -34,8 +34,14 @@ function Dashboard() {
   const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000
   const weekCount = records.filter((r) => Date.parse(r.syncedAt) > weekStart).length
 
-  const ready = status.stravaConnected && status.onelapConnected
+  // Ready = Strava authorized AND at least one data source configured
+  // (Onelap account, folder watch, or scheduled poll all count).
+  const hasAnySource = status.onelapConnected || !!status.watchDir
+  const ready = status.stravaConnected && hasAnySource
   const liveTriggers = (status.watchDir ? 1 : 0) + (status.scheduleCron ? 1 : 0)
+  // The "Sync now" button only makes sense for Onelap (pulls today's rides).
+  // For folder-only users, syncing is automatic on file drop.
+  const canManualSync = status.stravaConnected && status.onelapConnected
 
   async function syncNow() {
     setBusy(true)
@@ -64,7 +70,12 @@ function Dashboard() {
         title="概览"
         subtitle={ready ? '所有源已就绪。立即同步或交给后台触发器。' : '配置数据源后才能开始同步。'}
         action={
-          <Button onClick={syncNow} disabled={busy || !ready} size="lg" className="group min-w-40">
+          <Button
+            onClick={syncNow}
+            disabled={busy || !canManualSync}
+            size="lg"
+            className="group min-w-40"
+          >
             {busy ? (
               <>
                 <RefreshCw className="size-4 animate-spin" />
