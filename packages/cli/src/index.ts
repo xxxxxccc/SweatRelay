@@ -67,7 +67,7 @@ cli.command('status', 'Show config, credentials list, and recent sync history').
 })
 
 cli.help()
-cli.version('0.1.0-dev')
+cli.version('0.0.1')
 
 async function main() {
   cli.parse(process.argv, { run: false })
