@@ -7,7 +7,15 @@ import { defineConfig } from 'electron-vite'
 export default defineConfig({
   main: {
     build: {
-      externalizeDeps: true,
+      externalizeDeps: {
+        exclude: [
+          '@sweatrelay/core',
+          '@sweatrelay/adapter-onelap',
+          '@sweatrelay/adapter-folder',
+          '@sweatrelay/adapter-blackbird',
+          '@sweatrelay/adapter-magene',
+        ],
+      },
       rollupOptions: {
         input: { index: resolve('src/main/index.ts') },
       },
