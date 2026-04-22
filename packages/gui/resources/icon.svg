@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SweatRelay app icon — master source.
+  1024×1024 canvas. macOS / iOS auto-apply the squircle mask, so the
+  background fills full bleed. The two slanted parallelograms read as
+  "fast-forward" / race direction — same motif as the in-app brand mark.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg-glow" cx="50%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#2a1a12" />
+      <stop offset="100%" stop-color="#0e0a08" />
+    </radialGradient>
+    <linearGradient id="stripe" x1="0%" x2="100%" y1="0%" y2="0%">
+      <stop offset="0%" stop-color="#fc4c02" stop-opacity="0" />
+      <stop offset="50%" stop-color="#fc4c02" stop-opacity="1" />
+      <stop offset="100%" stop-color="#fc4c02" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Warm dark background, full bleed. -->
+  <rect width="1024" height="1024" fill="url(#bg-glow)" />
+
+  <!-- Two slanted bars / forward marks. Geometry:
+       slant = 180px lean to the right; bar width = 160px;
+       y span = 240 → 784 (544px tall). Centered on the 1024 canvas. -->
+  <g fill="#fc4c02">
+    <polygon points="200,784 380,240 540,240 360,784" />
+    <polygon points="500,784 680,240 840,240 660,784" opacity="0.55" />
+  </g>
+
+  <!-- Bottom race-stripe — echoes the app header's underline. -->
+  <rect x="0" y="996" width="1024" height="6" fill="url(#stripe)" />
+</svg>

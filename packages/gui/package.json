@@ -1,6 +1,6 @@
 {
   "name": "@sweatrelay/gui",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
@@ -8,11 +8,12 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "prepare:icons": "node ./scripts/prepare-icons.mjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
-    "package": "pnpm run build && electron-builder --publish=never",
-    "release": "pnpm run build && electron-builder --publish=always"
+    "package": "pnpm run prepare:icons && pnpm run build && electron-builder --publish=never",
+    "release": "pnpm run prepare:icons && pnpm run build && electron-builder --publish=always"
   },
   "dependencies": {
     "@fontsource-variable/hanken-grotesk": "^5.1.0",
@@ -55,6 +56,7 @@
     "electron": "^40.0.0",
     "electron-builder": "^25.1.0",
     "electron-vite": "^5.0.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.0.0",
     "vite": "^7.0.0"
   },
@@ -62,7 +64,7 @@
     "appId": "com.sweatrelay.app",
     "productName": "SweatRelay",
     "directories": {
-      "buildResources": "build",
+      "buildResources": "resources",
       "output": "release"
     },
     "files": [
@@ -77,6 +79,7 @@
       "releaseType": "release"
     },
     "mac": {
+      "icon": "resources/icon.png",
       "category": "public.app-category.healthcare-fitness",
       "target": [
         {
@@ -88,6 +91,7 @@
       ]
     },
     "win": {
+      "icon": "resources/icon.png",
       "target": [
         {
           "target": "nsis",
