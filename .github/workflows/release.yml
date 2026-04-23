@@ -13,8 +13,20 @@ permissions:
   contents: write
 
 jobs:
+  release:
+    name: Ensure GitHub release exists
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure release for tag exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "${GITHUB_REF_NAME#v}" --notes ""
+
   cli:
     name: CLI ${{ matrix.target_os }}-${{ matrix.target_arch }}
+    needs: release
     strategy:
       fail-fast: false
       matrix:
@@ -37,12 +49,17 @@ jobs:
       - run: pnpm --filter @sweatrelay/cli run bundle
       - run: pnpm --filter @sweatrelay/cli run build:binary
       - name: Attach binary to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: packages/cli/dist/sweatrelay-${{ matrix.target_os }}-${{ matrix.target_arch }}*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            packages/cli/dist/sweatrelay-${{ matrix.target_os }}-${{ matrix.target_arch }}* \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
 
   gui:
     name: GUI ${{ matrix.os }}
+    needs: release
     strategy:
       fail-fast: false
       matrix:
