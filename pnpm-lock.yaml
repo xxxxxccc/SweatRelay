@@ -91,6 +91,9 @@ importers:
       postject:
         specifier: ^1.0.0-alpha.6
         version: 1.0.0-alpha.6
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.12.2)(lightningcss@1.32.0)
 
   packages/core:
     dependencies:
@@ -237,6 +240,9 @@ importers:
       vite:
         specifier: ^7.0.0
         version: 7.3.2(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.12.2)(lightningcss@1.32.0)
 
 packages:
 
