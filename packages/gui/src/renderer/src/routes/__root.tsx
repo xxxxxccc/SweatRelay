@@ -31,6 +31,7 @@ function RootLayout() {
   const configured = useAtomValue(configuredAtom)
   const refresh = useSetAtom(refreshStatusAtom)
   const router = useRouter()
+  const path = router.state.location.pathname
 
   useEffect(() => {
     void refresh()
@@ -39,10 +40,16 @@ function RootLayout() {
   // Funnel unconfigured users to /setup; otherwise they bounce to /.
   useEffect(() => {
     if (!status) return
-    const path = router.state.location.pathname
     if (!configured && path !== '/setup') router.navigate({ to: '/setup' })
     if (configured && path === '/setup') router.navigate({ to: '/' })
-  }, [configured, status, router])
+  }, [configured, path, status, router])
+
+  if (!status) return <LaunchScreen />
+
+  const pendingRedirect = (!configured && path !== '/setup') || (configured && path === '/setup')
+  if (pendingRedirect) {
+    return <LaunchScreen bare={!configured} />
+  }
 
   // While unconfigured (Setup screen), render a single-column layout without
   // the persistent left rail so the form takes the whole window.
@@ -70,6 +77,25 @@ function RootLayout() {
             <Outlet />
           </main>
         </div>
+        <Toaster />
+      </div>
+    </TooltipProvider>
+  )
+}
+
+function LaunchScreen({ bare = true }: { bare?: boolean }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="relative flex h-screen w-full flex-col overflow-hidden">
+        <FramelessHeader bare={bare} />
+        <main className="flex flex-1 items-center justify-center px-8 pb-12">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <BrandMark />
+            <p className="font-mono text-mini uppercase tracking-stamp-wide text-fg-subtle">
+              正在连接控制台
+            </p>
+          </div>
+        </main>
         <Toaster />
       </div>
     </TooltipProvider>

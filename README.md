@@ -36,6 +36,26 @@ irm https://raw.githubusercontent.com/xxxxxccc/SweatRelay/main/scripts/install.p
 
 GUI 内置自动升级（electron-updater + GitHub Releases）。
 
+首次打开时，**macOS / Windows 都可能因为应用未签名而拦截**：
+
+- **macOS**：如果提示“已损坏，无法打开”或直接拒绝启动，把 App 拖到 `/Applications` 后执行：
+
+```sh
+xattr -dr com.apple.quarantine /Applications/SweatRelay.app
+```
+
+然后再打开一次。
+
+- **Windows**：第一次运行安装包或应用时，可能出现 SmartScreen 的“Windows 已保护你的电脑”。点“更多信息” → “仍要运行”即可。
+
+如果是下载文件本身被标记，也可以在 PowerShell 里解除阻止：
+
+```powershell
+Unblock-File "$env:USERPROFILE\\Downloads\\SweatRelay Setup 0.0.3.exe"
+```
+
+如果你把安装器放在别的目录，改成对应路径即可。
+
 ## 快速开始
 
 ### 1. 准备 Strava API 凭证

@@ -4,7 +4,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'electron-vite'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   main: {
     build: {
       externalizeDeps: {
@@ -40,6 +40,9 @@ export default defineConfig({
       react(),
       tailwindcss(),
     ],
+    define: {
+      __IS_PACKAGED__: JSON.stringify(command === 'build'),
+    },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
@@ -52,4 +55,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

@@ -1,4 +1,4 @@
-import { createRouter, RouterProvider } from '@tanstack/react-router'
+import { createHashHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Provider as JotaiProvider } from 'jotai'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -10,7 +10,13 @@ import '@fontsource-variable/hanken-grotesk'
 import '@fontsource-variable/jetbrains-mono'
 import './styles/globals.css'
 
-const router = createRouter({ routeTree, defaultPreload: 'intent' })
+declare const __IS_PACKAGED__: boolean
+
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  ...(__IS_PACKAGED__ ? { history: createHashHistory() } : {}),
+})
 
 declare module '@tanstack/react-router' {
   interface Register {
