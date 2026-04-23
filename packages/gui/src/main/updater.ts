@@ -1,7 +1,10 @@
+import { appendFile, mkdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { app, dialog } from 'electron'
 import electronUpdater, { type AppUpdater } from 'electron-updater'
 
 const { autoUpdater } = electronUpdater
+const updaterLogName = 'updater.log'
 
 /**
  * Wires electron-updater against GitHub releases. Owner/repo come from
@@ -12,11 +15,30 @@ export function configureAutoUpdates(): AppUpdater {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
+  autoUpdater.on('checking-for-update', () => {
+    logUpdater('checking-for-update')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    logUpdater(`update-available version=${info.version}`)
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    logUpdater(`update-not-available version=${info.version}`)
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    logUpdater(
+      `download-progress percent=${progress.percent.toFixed(1)} transferred=${progress.transferred} total=${progress.total} bytesPerSecond=${progress.bytesPerSecond}`,
+    )
+  })
+
   autoUpdater.on('error', (err) => {
-    console.error('[updater]', err)
+    logUpdater(`error ${(err as Error).stack ?? (err as Error).message ?? String(err)}`)
   })
 
   autoUpdater.on('update-downloaded', async (info) => {
+    logUpdater(`update-downloaded version=${info.version}`)
     if (!app.isPackaged) return
     const { response } = await dialog.showMessageBox({
       type: 'info',
@@ -27,12 +49,47 @@ export function configureAutoUpdates(): AppUpdater {
       message: `SweatRelay ${info.version} 准备就绪`,
       detail: '重启后将自动应用更新。',
     })
+    logUpdater(`update-downloaded-dialog response=${response === 0 ? 'restart-now' : 'later'}`)
     if (response === 0) autoUpdater.quitAndInstall()
   })
 
   if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => console.error('[updater]', err))
+    logUpdater('checkForUpdatesAndNotify start')
+    autoUpdater
+      .checkForUpdatesAndNotify()
+      .then((result) => {
+        if (!result) {
+          logUpdater('checkForUpdatesAndNotify result=no-update')
+          return
+        }
+        logUpdater(`checkForUpdatesAndNotify result=update version=${result.updateInfo.version}`)
+      })
+      .catch((err) =>
+        logUpdater(`error ${(err as Error).stack ?? (err as Error).message ?? String(err)}`),
+      )
+  } else {
+    logUpdater('skip auto-update check in development')
   }
 
   return autoUpdater
+}
+
+function logUpdater(message: string): void {
+  const line = `[${new Date().toISOString()}] ${message}`
+  console.log('[updater]', message)
+  void writeUpdaterLog(line)
+}
+
+async function writeUpdaterLog(line: string): Promise<void> {
+  try {
+    const path = updaterLogPath()
+    await mkdir(dirname(path), { recursive: true })
+    await appendFile(path, `${line}\n`, 'utf8')
+  } catch (err) {
+    console.error('[updater]', 'failed to write updater log', err)
+  }
+}
+
+function updaterLogPath(): string {
+  return join(app.getPath('userData'), 'logs', updaterLogName)
 }
