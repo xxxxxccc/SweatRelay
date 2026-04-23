@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 import { FileWatcherTrigger, SyncPipeline } from '@sweatrelay/core'
-import { buildContext } from '../context.ts'
+import { buildCredentialStore, buildPaths, buildUploader } from '../context.ts'
 import { reportOutcomes } from './shared.ts'
 
 export interface WatchOptions {
@@ -8,9 +8,11 @@ export interface WatchOptions {
 }
 
 export async function watchDir(dir: string, opts: WatchOptions = {}): Promise<void> {
-  const ctx = buildContext()
+  const paths = buildPaths()
+  const credentials = await buildCredentialStore(paths)
+  const { uploader } = await buildUploader(paths, credentials)
   const abs = resolve(dir)
-  const pipeline = new SyncPipeline({ uploader: ctx.uploader, store: ctx.store })
+  const pipeline = new SyncPipeline({ uploader, store: paths.store })
   const trigger = new FileWatcherTrigger({
     paths: abs,
     ...(opts.processExisting !== undefined ? { processExisting: opts.processExisting } : {}),

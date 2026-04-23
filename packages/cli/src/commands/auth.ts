@@ -1,27 +1,34 @@
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
-import { buildContext, STRAVA_TOKENS_CRED_KEY } from '../context.ts'
+import {
+  buildCredentialStore,
+  buildPaths,
+  buildUploader,
+  STRAVA_TOKENS_CRED_KEY,
+} from '../context.ts'
 import { openBrowser } from '../util/openBrowser.ts'
 import { prompt, promptPassword } from '../util/prompt.ts'
 
 export async function authStrava(): Promise<void> {
-  const ctx = buildContext()
+  const paths = buildPaths()
+  const credentials = await buildCredentialStore(paths)
+  const { oauth } = await buildUploader(paths, credentials)
   console.log('打开浏览器进行 Strava 授权…')
-  const tokens = await ctx.oauth.authorize({
+  const tokens = await oauth.authorize({
     openUrl: (url) => {
       console.log(`如果浏览器没有自动打开，请手动访问：\n  ${url}`)
       openBrowser(url)
     },
   })
-  await ctx.credentials.set(STRAVA_TOKENS_CRED_KEY, JSON.stringify(tokens))
+  await credentials.set(STRAVA_TOKENS_CRED_KEY, JSON.stringify(tokens))
   console.log(`✓ Strava 授权成功（运动员: ${tokens.athleteId ?? '未知'}）`)
-  console.log(`  连接信息已加密保存到 ${ctx.credsPath}`)
+  console.log(`  连接信息已保存到系统钥匙串或 ${paths.credsPath}`)
 }
 
 export async function authOnelap(): Promise<void> {
-  const ctx = buildContext()
+  const credentials = await buildCredentialStore(buildPaths())
   const account = await prompt('Onelap 账号：')
   const password = await promptPassword('Onelap 密码：')
-  const adapter = new OnelapApiAdapter({ credentials: ctx.credentials })
+  const adapter = new OnelapApiAdapter({ credentials })
   await adapter.saveCredentials(account, password)
   // Eagerly try logging in to surface bad credentials immediately.
   try {

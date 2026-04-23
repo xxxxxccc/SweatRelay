@@ -5,12 +5,14 @@ import type {
   ListOptions,
   SourceAdapter,
 } from '@sweatrelay/core'
-import { parseFit, SweatRelayError } from '@sweatrelay/core'
+import {
+  ONELAP_ACCOUNT_KEY,
+  ONELAP_PASSWORD_KEY,
+  ONELAP_SESSION_KEY,
+  parseFit,
+  SweatRelayError,
+} from '@sweatrelay/core'
 import { OnelapApiClient, type OnelapSession, parseOnelapDate } from './OnelapApiClient.ts'
-
-const ACCOUNT_KEY = 'onelap.account'
-const PASSWORD_KEY = 'onelap.password'
-const SESSION_KEY = 'onelap.session'
 
 export interface OnelapApiAdapterOptions {
   credentials: CredentialStore
@@ -67,14 +69,14 @@ export class OnelapApiAdapter implements SourceAdapter {
 
   /** Save credentials. Call this from `cli auth onelap`. */
   async saveCredentials(account: string, password: string): Promise<void> {
-    await this.opts.credentials.set(ACCOUNT_KEY, account)
-    await this.opts.credentials.set(PASSWORD_KEY, password)
+    await this.opts.credentials.set(ONELAP_ACCOUNT_KEY, account)
+    await this.opts.credentials.set(ONELAP_PASSWORD_KEY, password)
     // Clear stale session so the next call re-logs in.
-    await this.opts.credentials.delete(SESSION_KEY)
+    await this.opts.credentials.delete(ONELAP_SESSION_KEY)
   }
 
   private async ensureSession(): Promise<OnelapSession> {
-    const cached = await this.opts.credentials.get(SESSION_KEY)
+    const cached = await this.opts.credentials.get(ONELAP_SESSION_KEY)
     if (cached) {
       try {
         return JSON.parse(cached) as OnelapSession
@@ -82,15 +84,15 @@ export class OnelapApiAdapter implements SourceAdapter {
         // fall through to re-login
       }
     }
-    const account = await this.opts.credentials.get(ACCOUNT_KEY)
-    const password = await this.opts.credentials.get(PASSWORD_KEY)
+    const account = await this.opts.credentials.get(ONELAP_ACCOUNT_KEY)
+    const password = await this.opts.credentials.get(ONELAP_PASSWORD_KEY)
     if (!account || !password) {
       throw new SweatRelayError(
         'Onelap account/password not stored — run `sweatrelay auth onelap` first',
       )
     }
     const session = await this.client.login(account, password)
-    await this.opts.credentials.set(SESSION_KEY, JSON.stringify(session))
+    await this.opts.credentials.set(ONELAP_SESSION_KEY, JSON.stringify(session))
     return session
   }
 }

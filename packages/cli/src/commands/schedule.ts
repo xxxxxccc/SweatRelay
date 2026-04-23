@@ -1,6 +1,6 @@
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import { ScheduledTrigger, SyncPipeline } from '@sweatrelay/core'
-import { buildContext } from '../context.ts'
+import { buildCredentialStore, buildPaths, buildUploader } from '../context.ts'
 import { reportOutcomes } from './shared.ts'
 
 export interface ScheduleOptions {
@@ -20,11 +20,13 @@ export async function schedule(
     throw new Error(`Unsupported scheduled action: ${action}. Try \`sync\` or \`sync onelap\`.`)
   }
 
-  const ctx = buildContext()
-  const adapter = new OnelapApiAdapter({ credentials: ctx.credentials })
+  const paths = buildPaths()
+  const credentials = await buildCredentialStore(paths)
+  const { uploader } = await buildUploader(paths, credentials)
+  const adapter = new OnelapApiAdapter({ credentials })
   const pipeline = new SyncPipeline({
-    uploader: ctx.uploader,
-    store: ctx.store,
+    uploader,
+    store: paths.store,
     adapter,
   })
   const trigger = new ScheduledTrigger({

@@ -1,16 +1,21 @@
-import { buildContext } from '../context.ts'
+import { buildCredentialStore, buildPaths } from '../context.ts'
 
 export async function status(): Promise<void> {
-  const ctx = buildContext()
-  console.log(`Config dir:   ${ctx.configDir}`)
-  console.log(`Creds:        ${ctx.credsPath}`)
-  console.log(`Synced state: ${ctx.syncedPath}`)
+  const paths = buildPaths()
+  console.log(`Config dir:   ${paths.configDir}`)
+  console.log(`Creds:        ${paths.credsPath}`)
+  console.log(`Synced state: ${paths.syncedPath}`)
   console.log()
 
-  const credKeys = await ctx.credentials.keys()
-  console.log(`Credentials stored: ${credKeys.length === 0 ? '(none)' : credKeys.join(', ')}`)
+  try {
+    const credentials = await buildCredentialStore(paths)
+    const credKeys = await credentials.keys()
+    console.log(`Credentials stored: ${credKeys.length === 0 ? '(none)' : credKeys.join(', ')}`)
+  } catch (err) {
+    console.log(`Credentials stored: unavailable (${(err as Error).message})`)
+  }
 
-  const records = await ctx.store.list()
+  const records = await paths.store.list()
   console.log(`\nRecent syncs (${records.length} total):`)
   for (const r of records.slice(0, 20)) {
     const url = r.activityUrl ?? '(no Strava url)'

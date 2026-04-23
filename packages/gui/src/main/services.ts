@@ -1,3 +1,4 @@
+import { access } from 'node:fs/promises'
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import {
   type CredentialStore,
@@ -5,7 +6,11 @@ import {
   FileWatcherTrigger,
   KeyringCredentialStore,
   makeTokenGetter,
+  ONELAP_ACCOUNT_KEY,
   ScheduledTrigger,
+  STRAVA_CLIENT_ID_KEY,
+  STRAVA_CLIENT_SECRET_KEY,
+  STRAVA_TOKENS_KEY,
   StravaOAuth,
   type StravaTokens,
   StravaUploader,
@@ -14,9 +19,6 @@ import {
   SyncPipeline,
 } from '@sweatrelay/core'
 import { type AppPaths, loadSettings, saveSettings, type ThemePreference } from './state.ts'
-
-const STRAVA_TOKENS_KEY = 'strava.tokens'
-const ONELAP_ACCOUNT_KEY = 'onelap.account'
 
 /**
  * Prefer the OS keychain. If it fails (headless Linux without libsecret, or the
@@ -42,8 +44,7 @@ async function buildCredentialStore(paths: AppPaths, passphrase: string): Promis
       }
     }
     return keyring
-  } catch (err) {
-    console.warn('[services] OS keyring unavailable, falling back to encrypted file:', err)
+  } catch {
     return file
   }
 }
@@ -51,7 +52,6 @@ async function buildCredentialStore(paths: AppPaths, passphrase: string): Promis
 /** Container of the GUI's live services; rebuilt whenever passphrase or settings change. */
 export class Services {
   readonly paths: AppPaths
-  private passphrase: string | null = null
   private credentials: CredentialStore | null = null
   private store: SyncedStore
   private oauth: StravaOAuth | null = null
@@ -69,7 +69,36 @@ export class Services {
   }
 
   configured(): boolean {
-    return this.passphrase !== null && this.uploader !== null
+    return this.uploader !== null
+  }
+
+  async restorePersistedConfiguration(): Promise<void> {
+    if (this.uploader) return
+
+    const credentials = await this.restoreCredentialStore()
+    if (!credentials) return
+    const config = await this.loadStravaAppConfig(credentials)
+    if (!config) return
+
+    this.credentials = credentials
+    this.oauth = new StravaOAuth({
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+    })
+    const oauth = this.oauth
+    this.uploader = new StravaUploader({
+      getAccessToken: makeTokenGetter({
+        load: async () => {
+          const raw = await credentials.get(STRAVA_TOKENS_KEY)
+          return raw ? (JSON.parse(raw) as StravaTokens) : null
+        },
+        save: async (tokens) => {
+          await credentials.set(STRAVA_TOKENS_KEY, JSON.stringify(tokens))
+        },
+        refresh: (refreshToken) => oauth.refresh(refreshToken),
+      }),
+    })
+    await this.restartTriggers()
   }
 
   async configure(
@@ -77,9 +106,13 @@ export class Services {
     stravaClientId: string,
     stravaClientSecret: string,
   ): Promise<void> {
-    await saveSettings(this.paths.settingsPath, { stravaClientId, stravaClientSecret })
-    this.passphrase = passphrase
     this.credentials = await buildCredentialStore(this.paths, passphrase)
+    await this.credentials.set(STRAVA_CLIENT_ID_KEY, stravaClientId)
+    await this.credentials.set(STRAVA_CLIENT_SECRET_KEY, stravaClientSecret)
+    await saveSettings(this.paths.settingsPath, {
+      stravaClientId: undefined,
+      stravaClientSecret: undefined,
+    })
     this.oauth = new StravaOAuth({
       clientId: stravaClientId,
       clientSecret: stravaClientSecret,
@@ -216,5 +249,78 @@ export class Services {
     await this.fileWatcher?.stop()
     await this.scheduledTrigger?.stop()
     this.listeners.clear()
+  }
+
+  private async restoreCredentialStore(): Promise<CredentialStore | null> {
+    const passphrase = process.env.SWEATRELAY_PASSPHRASE
+    const hasEncryptedFile = await fileExists(this.paths.credsPath)
+
+    try {
+      const keyring = new KeyringCredentialStore({ service: 'SweatRelay' })
+      await keyring.get('__probe__')
+      if (passphrase) {
+        const file = new EncryptedFileCredentialStore({
+          path: this.paths.credsPath,
+          passphrase,
+        })
+        const [fileKeys, keyringKeys] = await Promise.all([
+          file.keys().catch(() => [] as string[]),
+          keyring.keys(),
+        ])
+        if (fileKeys.length > 0 && keyringKeys.length === 0) {
+          await keyring.importFrom(file)
+        }
+      } else if ((await keyring.keys()).length === 0 && hasEncryptedFile) {
+        return null
+      }
+      return keyring
+    } catch {
+      // Fall through to the encrypted-file store path.
+    }
+
+    if (!passphrase) return null
+
+    return new EncryptedFileCredentialStore({
+      path: this.paths.credsPath,
+      passphrase,
+    })
+  }
+
+  private async loadStravaAppConfig(
+    credentials: CredentialStore,
+  ): Promise<{ clientId: string; clientSecret: string } | null> {
+    const [storedId, storedSecret] = await Promise.all([
+      credentials.get(STRAVA_CLIENT_ID_KEY),
+      credentials.get(STRAVA_CLIENT_SECRET_KEY),
+    ])
+    if (storedId && storedSecret) {
+      return { clientId: storedId, clientSecret: storedSecret }
+    }
+
+    const settings = await loadSettings(this.paths.settingsPath)
+    if (!settings.stravaClientId || !settings.stravaClientSecret) return null
+
+    await Promise.all([
+      credentials.set(STRAVA_CLIENT_ID_KEY, settings.stravaClientId),
+      credentials.set(STRAVA_CLIENT_SECRET_KEY, settings.stravaClientSecret),
+      saveSettings(this.paths.settingsPath, {
+        stravaClientId: undefined,
+        stravaClientSecret: undefined,
+      }),
+    ])
+
+    return {
+      clientId: settings.stravaClientId,
+      clientSecret: settings.stravaClientSecret,
+    }
+  }
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
   }
 }

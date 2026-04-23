@@ -185,7 +185,10 @@ function registerIpc(): void {
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await services.restorePersistedConfiguration().catch((err) => {
+    console.error('[startup] failed to restore persisted GUI configuration:', err)
+  })
   registerIpc()
   configureAutoUpdates()
   createWindow()

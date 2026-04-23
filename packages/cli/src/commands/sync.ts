@@ -4,7 +4,7 @@ import { FolderAdapter } from '@sweatrelay/adapter-folder'
 import { MageneFolderAdapter } from '@sweatrelay/adapter-magene'
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import { type SourceAdapter, SyncPipeline } from '@sweatrelay/core'
-import { buildContext } from '../context.ts'
+import { buildCredentialStore, buildPaths, buildUploader } from '../context.ts'
 import { reportOutcomes } from './shared.ts'
 
 export interface SyncOptions {
@@ -16,10 +16,12 @@ export interface FolderSyncOptions extends SyncOptions {
 }
 
 async function runWithAdapter(adapter: SourceAdapter): Promise<void> {
-  const ctx = buildContext()
+  const paths = buildPaths()
+  const credentials = await buildCredentialStore(paths)
+  const { uploader } = await buildUploader(paths, credentials)
   const pipeline = new SyncPipeline({
-    uploader: ctx.uploader,
-    store: ctx.store,
+    uploader,
+    store: paths.store,
     adapter,
   })
   const outcomes = await pipeline.handleAdapterPull()
@@ -27,8 +29,16 @@ async function runWithAdapter(adapter: SourceAdapter): Promise<void> {
 }
 
 export async function syncOnelap(_opts: SyncOptions = {}): Promise<void> {
-  const ctx = buildContext()
-  await runWithAdapter(new OnelapApiAdapter({ credentials: ctx.credentials }))
+  const paths = buildPaths()
+  const credentials = await buildCredentialStore(paths)
+  const { uploader } = await buildUploader(paths, credentials)
+  const pipeline = new SyncPipeline({
+    uploader,
+    store: paths.store,
+    adapter: new OnelapApiAdapter({ credentials }),
+  })
+  const outcomes = await pipeline.handleAdapterPull()
+  reportOutcomes(outcomes)
 }
 
 export async function syncMagene(opts: FolderSyncOptions): Promise<void> {

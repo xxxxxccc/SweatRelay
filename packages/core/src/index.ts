@@ -14,6 +14,12 @@ export {
   KeyringCredentialStore,
   type KeyringCredentialStoreOptions,
   MemoryCredentialStore,
+  ONELAP_ACCOUNT_KEY,
+  ONELAP_PASSWORD_KEY,
+  ONELAP_SESSION_KEY,
+  STRAVA_CLIENT_ID_KEY,
+  STRAVA_CLIENT_SECRET_KEY,
+  STRAVA_TOKENS_KEY,
 } from './credentials/index.ts'
 export { detectFormat, type ParseFitOptions, parseFit } from './parsers/index.ts'
 export {
