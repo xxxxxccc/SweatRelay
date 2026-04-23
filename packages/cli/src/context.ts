@@ -6,6 +6,9 @@ import {
   EncryptedFileCredentialStore,
   KeyringCredentialStore,
   makeTokenGetter,
+  normalizePersistedSettings,
+  ONELAP_ACCOUNT_KEY,
+  readLegacyStravaAppConfig,
   STRAVA_CLIENT_ID_KEY,
   STRAVA_CLIENT_SECRET_KEY,
   STRAVA_TOKENS_KEY,
@@ -21,6 +24,16 @@ export interface CliPaths {
   credsPath: string
   syncedPath: string
   store: SyncedStore
+}
+
+export interface CliDiagnostics {
+  configDir: string
+  keyringAvailable: boolean
+  hasEncryptedCredentials: boolean
+  stravaConfigPresent: boolean
+  stravaTokensPresent: boolean
+  onelapCredentialsPresent: boolean
+  sharedConfigPresent: boolean
 }
 
 export function buildPaths(): CliPaths {
@@ -175,13 +188,81 @@ async function loadLegacyStravaAppConfig(
   settingsPath: string,
 ): Promise<{ clientId: string; clientSecret: string } | null> {
   try {
-    const raw = JSON.parse(await readFile(settingsPath, 'utf8')) as {
-      stravaClientId?: string
-      stravaClientSecret?: string
-    }
-    if (!raw.stravaClientId || !raw.stravaClientSecret) return null
-    return { clientId: raw.stravaClientId, clientSecret: raw.stravaClientSecret }
+    return readLegacyStravaAppConfig(JSON.parse(await readFile(settingsPath, 'utf8')) as unknown)
   } catch {
     return null
+  }
+}
+
+export async function loadPersistedSettings(
+  settingsPath: string,
+): Promise<ReturnType<typeof normalizePersistedSettings>> {
+  try {
+    return normalizePersistedSettings(JSON.parse(await readFile(settingsPath, 'utf8')) as unknown)
+  } catch {
+    return normalizePersistedSettings(null)
+  }
+}
+
+export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostics> {
+  const [rawSettings, settings, hasEncryptedCredentials, keyringAvailable] = await Promise.all([
+    readRawSettings(paths.settingsPath),
+    loadPersistedSettings(paths.settingsPath),
+    fileExists(paths.credsPath),
+    canUseKeyring(),
+  ])
+
+  let credentials: CredentialStore | null = null
+  try {
+    credentials = await buildCredentialStore(paths)
+  } catch {
+    credentials = null
+  }
+
+  let storedClientId: string | null = null
+  let storedClientSecret: string | null = null
+  let stravaTokensPresent = false
+  let onelapCredentialsPresent = false
+  if (credentials) {
+    ;[storedClientId, storedClientSecret] = await Promise.all([
+      credentials.get(STRAVA_CLIENT_ID_KEY),
+      credentials.get(STRAVA_CLIENT_SECRET_KEY),
+    ])
+    const [tokens, onelapAccount] = await Promise.all([
+      credentials.get(STRAVA_TOKENS_KEY),
+      credentials.get(ONELAP_ACCOUNT_KEY),
+    ])
+    stravaTokensPresent = Boolean(tokens)
+    onelapCredentialsPresent = Boolean(onelapAccount)
+  }
+
+  return {
+    configDir: paths.configDir,
+    keyringAvailable,
+    hasEncryptedCredentials,
+    stravaConfigPresent:
+      Boolean(storedClientId && storedClientSecret) ||
+      readLegacyStravaAppConfig(rawSettings) !== null,
+    stravaTokensPresent,
+    onelapCredentialsPresent,
+    sharedConfigPresent: Boolean(settings.shared.watchDir || settings.shared.scheduleCron),
+  }
+}
+
+async function readRawSettings(settingsPath: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(settingsPath, 'utf8')) as unknown
+  } catch {
+    return null
+  }
+}
+
+async function canUseKeyring(): Promise<boolean> {
+  try {
+    const keyring = new KeyringCredentialStore({ service: 'SweatRelay' })
+    await keyring.get('__probe__')
+    return true
+  } catch {
+    return false
   }
 }

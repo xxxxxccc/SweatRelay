@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnlockRouteImport } from './routes/unlock'
 import { Route as TriggersRouteImport } from './routes/triggers'
 import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as SetupRouteImport } from './routes/setup'
@@ -16,6 +17,11 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UnlockRoute = UnlockRouteImport.update({
+  id: '/unlock',
+  path: '/unlock',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TriggersRoute = TriggersRouteImport.update({
   id: '/triggers',
   path: '/triggers',
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
   '/triggers': typeof TriggersRoute
+  '/unlock': typeof UnlockRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
   '/triggers': typeof TriggersRoute
+  '/unlock': typeof UnlockRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
   '/triggers': typeof TriggersRoute
+  '/unlock': typeof UnlockRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,8 +90,16 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sources'
     | '/triggers'
+    | '/unlock'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/history' | '/settings' | '/setup' | '/sources' | '/triggers'
+  to:
+    | '/'
+    | '/history'
+    | '/settings'
+    | '/setup'
+    | '/sources'
+    | '/triggers'
+    | '/unlock'
   id:
     | '__root__'
     | '/'
@@ -91,6 +108,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sources'
     | '/triggers'
+    | '/unlock'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -100,10 +118,18 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   SourcesRoute: typeof SourcesRoute
   TriggersRoute: typeof TriggersRoute
+  UnlockRoute: typeof UnlockRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unlock': {
+      id: '/unlock'
+      path: '/unlock'
+      fullPath: '/unlock'
+      preLoaderRoute: typeof UnlockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/triggers': {
       id: '/triggers'
       path: '/triggers'
@@ -156,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   SourcesRoute: SourcesRoute,
   TriggersRoute: TriggersRoute,
+  UnlockRoute: UnlockRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

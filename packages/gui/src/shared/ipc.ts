@@ -1,17 +1,34 @@
 import type { SyncOutcome, SyncRecord } from '@sweatrelay/core'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
+export type AutoSyncMode = 'none' | 'watch' | 'schedule' | 'both'
+
+export interface AppDiagnostics {
+  keyringAvailable: boolean
+  hasEncryptedCredentials: boolean
+  stravaConfigPresent: boolean
+  stravaTokensPresent: boolean
+  onelapCredentialsPresent: boolean
+  sharedConfigPresent: boolean
+}
 
 export interface AppStatus {
   configured: boolean
+  needsUnlock: boolean
   configDir: string
+  appVersion: string
   stravaConnected: boolean
+  stravaConfigPresent: boolean
   stravaAthleteId?: number
   onelapConnected: boolean
   onelapAccount?: string
   watchDir?: string
   scheduleCron?: string
+  autoSyncEnabled: boolean
+  autoSyncMode: AutoSyncMode
+  manualSyncAvailable: boolean
   theme: ThemePreference
+  diagnostics: AppDiagnostics
   recentSyncs: SyncRecord[]
 }
 
@@ -19,6 +36,10 @@ export interface ConfigurePayload {
   passphrase: string
   stravaClientId: string
   stravaClientSecret: string
+}
+
+export interface UnlockPayload {
+  passphrase: string
 }
 
 export interface OnelapAuthPayload {
@@ -51,6 +72,7 @@ export interface SweatRelayApi {
   readonly platform: NodeJS.Platform
   status(): Promise<IpcResult<AppStatus>>
   configure(payload: ConfigurePayload): Promise<IpcResult<AppStatus>>
+  unlock(payload: UnlockPayload): Promise<IpcResult<AppStatus>>
   authStrava(): Promise<IpcResult<AppStatus>>
   authOnelap(payload: OnelapAuthPayload): Promise<IpcResult<AppStatus>>
   setWatchDir(payload: SetWatchDirPayload): Promise<IpcResult<AppStatus>>
@@ -65,6 +87,7 @@ export interface SweatRelayApi {
 export const IPC_CHANNELS = {
   status: 'sweatrelay:status',
   configure: 'sweatrelay:configure',
+  unlock: 'sweatrelay:unlock',
   authStrava: 'sweatrelay:authStrava',
   authOnelap: 'sweatrelay:authOnelap',
   setWatchDir: 'sweatrelay:setWatchDir',

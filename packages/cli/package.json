@@ -1,6 +1,6 @@
 {
   "name": "@sweatrelay/cli",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "type": "module",
   "bin": {
@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
     "bundle": "node scripts/bundle.mjs",
     "build:binary": "node scripts/build-binary.mjs"
   },
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
-    "postject": "^1.0.0-alpha.6"
+    "postject": "^1.0.0-alpha.6",
+    "vitest": "^2.1.0"
   }
 }

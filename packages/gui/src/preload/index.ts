@@ -9,6 +9,7 @@ import {
   type SetThemePayload,
   type SetWatchDirPayload,
   type SweatRelayApi,
+  type UnlockPayload,
 } from '../shared/ipc.ts'
 
 const api: SweatRelayApi = {
@@ -16,6 +17,8 @@ const api: SweatRelayApi = {
   status: () => ipcRenderer.invoke(IPC_CHANNELS.status) as Promise<IpcResult<never>>,
   configure: (payload: ConfigurePayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.configure, payload) as Promise<IpcResult<never>>,
+  unlock: (payload: UnlockPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.unlock, payload) as Promise<IpcResult<never>>,
   authStrava: () => ipcRenderer.invoke(IPC_CHANNELS.authStrava) as Promise<IpcResult<never>>,
   authOnelap: (payload: OnelapAuthPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.authOnelap, payload) as Promise<IpcResult<never>>,

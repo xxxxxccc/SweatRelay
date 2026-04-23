@@ -1,18 +1,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import {
+  mergePersistedSettings,
+  normalizePersistedSettings,
+  type PersistedSettings,
+  type PersistedSettingsPatch,
+} from '@sweatrelay/core'
 
-export type ThemePreference = 'system' | 'light' | 'dark'
-
-export interface PersistedSettings {
-  v: 1
-  stravaClientId?: string
-  stravaClientSecret?: string
-  watchDir?: string
-  scheduleCron?: string
-  scheduleTz?: string
-  theme?: ThemePreference
-}
+export type { ThemePreference } from '@sweatrelay/core'
 
 export interface AppPaths {
   configDir: string
@@ -36,20 +32,22 @@ export function appPaths(): AppPaths {
 export async function loadSettings(path: string): Promise<PersistedSettings> {
   try {
     const raw = await readFile(path, 'utf8')
-    return JSON.parse(raw) as PersistedSettings
+    return normalizePersistedSettings(JSON.parse(raw) as unknown)
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { v: 1 }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return normalizePersistedSettings(null)
+    }
     throw err
   }
 }
 
 export async function saveSettings(
   path: string,
-  patch: Partial<Omit<PersistedSettings, 'v'>>,
+  patch: PersistedSettingsPatch,
 ): Promise<PersistedSettings> {
   const current = await loadSettings(path)
-  const next: PersistedSettings = { ...current, ...patch, v: 1 }
-  await mkdir(join(path, '..'), { recursive: true })
+  const next = mergePersistedSettings(current, patch)
+  await mkdir(dirname(path), { recursive: true })
   await writeFile(path, JSON.stringify(next, null, 2))
   return next
 }

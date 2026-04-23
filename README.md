@@ -9,6 +9,7 @@
 - **Onelap → Strava**：用账号密码自动拉取今日骑行
 - **任意码表 → Strava**：监控一个文件夹，新增的 FIT/GPX/TCX 自动上传
 - **定时拉取**：GUI 里挑频率（每 15 分钟 / 每小时…）；CLI 支持 cron 表达式
+- **同步控制台**：GUI 和 CLI 共享同一套本地配置、凭证和同步历史
 - **重复检测**：本地 hash + Strava 服务端 `external_id` 双保险，重复上传不会真重复
 - **加密存储**：所有连接信息用 AES-256-GCM + scrypt 加密在本地（支持 OS 钥匙串）
 
@@ -67,8 +68,11 @@ Unblock-File "$env:USERPROFILE\\Downloads\\SweatRelay Setup 0.0.3.exe"
 ### 2. CLI 用法
 
 ```sh
-# 设置环境变量
+# 首次使用 CLI 时建议先提供本地加密密码
 export SWEATRELAY_PASSPHRASE="your-master-password"
+
+# 可选：用环境变量覆盖 Strava App 配置
+# 如果你已经在 GUI 里配过一次，这两项可以不设
 export STRAVA_CLIENT_ID="..."
 export STRAVA_CLIENT_SECRET="..."
 
@@ -89,13 +93,32 @@ sweatrelay schedule "*/30 * * * *" sync onelap --tz Asia/Shanghai
 
 # 查看历史
 sweatrelay status
+sweatrelay doctor
 ```
+
+说明：
+
+- `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` 现在只是 **override**。未设置时，CLI 会回落到 GUI/CLI 共享的本地持久化配置。
+- 如果你既没有启用文件夹监控，也没有配置定时同步，那么 **手动执行 `sweatrelay sync onelap` 就是唯一同步方式**。
 
 完整命令参考见 [SKILL.md](./SKILL.md)（也是给 AI agent 用的）。
 
 ### 3. GUI 用法
 
-启动后跟着引导走：填主密码 + Strava 凭证 → 授权 Strava → 配置 Onelap 账号或选 watch 目录 → 看 Dashboard。
+启动后跟着引导走：填本地加密密码 + Strava 凭证 → 授权 Strava → 配置 Onelap 账号或选 watch 目录 → 看 Dashboard。
+
+GUI 现在按“同步控制台”来设计：
+
+- `Strava` 是唯一原生目标端
+- `Intervals.icu` 只提供外部服务入口，不在应用内直连上传
+- `文件夹监控` 和 `定时同步` 都属于后台自动同步
+- 如果这两项都没启用，右上角的 `立即同步` 就是当前唯一同步方式
+
+如果你也使用 `Intervals.icu`，推荐路径是：
+
+1. 用 SweatRelay 把活动同步到 `Strava`
+2. 在 `Intervals.icu` 那边连接 `Strava`
+3. 让 `Intervals.icu` 经由 `Strava` 获取活动
 
 支持 dark / light 主题切换。
 
@@ -130,7 +153,7 @@ packages/
 - `CredentialStore` — `EncryptedFileCredentialStore`(AES-GCM + scrypt) / `MemoryCredentialStore`(测试)
 - `SyncPipeline` — 编排 trigger → adapter → upload → record
 
-**CLI 与 GUI 共享同一份 core**。CLI 是薄壳（cac framework），GUI 是 Electron main 进程跑 core + React 19 渲染层（TanStack Router 文件路由 + Jotai 共享状态 + Tailwind v4 + shadcn/ui + Race Telemetry 视觉风格）。
+**CLI 与 GUI 共享同一份 core，也共享同一套本地配置、凭证与同步历史**。CLI 是薄壳（cac framework），GUI 是 Electron main 进程跑 core + React 19 渲染层（TanStack Router 文件路由 + Jotai 共享状态 + Tailwind v4 + shadcn/ui + Race Telemetry 视觉风格）。
 
 ## 开发
 
@@ -184,9 +207,8 @@ pnpm --filter @sweatrelay/gui run package
 
 ### CI / 发布
 
-- **`.github/workflows/ci.yml`** — 每个 PR：lint + typecheck + test
-- **`.github/workflows/main-build.yml`** — 每次 push 到 main：构建 CLI 四平台二进制 + GUI 三平台安装器，发到 `nightly` rolling pre-release
-- **`.github/workflows/release.yml`** — 推 tag `vX.Y.Z`：同样的产物，发到正式 release（GUI 同时通过 electron-builder 上传 `latest*.yml` 给 electron-updater）
+- **`.github/workflows/ci.yml`** — 每个 PR / push：lint + typecheck + test
+- **`.github/workflows/release.yml`** — 推 tag `vX.Y.Z`：构建 CLI 二进制和 GUI 安装器，发到正式 release（GUI 同时通过 electron-builder 上传 `latest*.yml` 给 electron-updater）
 
 ## 法律与风险
 

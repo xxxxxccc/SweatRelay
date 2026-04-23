@@ -3,6 +3,7 @@ import type { SyncOutcome } from '@sweatrelay/core'
 import { app, BrowserWindow, dialog, type IpcMainInvokeEvent, ipcMain, shell } from 'electron'
 import {
   type AppStatus,
+  type AutoSyncMode,
   type ConfigurePayload,
   IPC_CHANNELS,
   type IpcResult,
@@ -10,6 +11,7 @@ import {
   type SetSchedulePayload,
   type SetThemePayload,
   type SetWatchDirPayload,
+  type UnlockPayload,
 } from '../shared/ipc.ts'
 import { Services } from './services.ts'
 import { appPaths } from './state.ts'
@@ -30,19 +32,30 @@ async function buildStatus(): Promise<AppStatus> {
   const settings = await services.loadPersistedSettings()
   const onelapAccount = await services.getOnelapAccount()
   const stravaAthleteId = await services.getStravaAthleteId()
+  const diagnostics = services.diagnostics()
   const recentSyncs = services.configured() ? (await services.recentSyncs()).slice(0, 50) : []
+  const autoSyncMode = getAutoSyncMode(settings)
+  const autoSyncEnabled = autoSyncMode !== 'none'
   const status: AppStatus = {
     configured: services.configured(),
+    needsUnlock: services.needsUnlock(),
     configDir: services.paths.configDir,
+    appVersion: app.getVersion(),
     stravaConnected: stravaAthleteId !== undefined,
+    stravaConfigPresent: diagnostics.stravaConfigPresent,
     onelapConnected: onelapAccount !== null,
-    theme: settings.theme ?? 'system',
+    autoSyncEnabled,
+    autoSyncMode,
+    manualSyncAvailable:
+      services.configured() && stravaAthleteId !== undefined && onelapAccount !== null,
+    theme: settings.gui.theme ?? 'system',
+    diagnostics,
     recentSyncs,
   }
   if (stravaAthleteId !== undefined) status.stravaAthleteId = stravaAthleteId
   if (onelapAccount) status.onelapAccount = onelapAccount
-  if (settings.watchDir) status.watchDir = settings.watchDir
-  if (settings.scheduleCron) status.scheduleCron = settings.scheduleCron
+  if (settings.shared.watchDir) status.watchDir = settings.shared.watchDir
+  if (settings.shared.scheduleCron) status.scheduleCron = settings.shared.scheduleCron
   return status
 }
 
@@ -108,6 +121,15 @@ function registerIpc(): void {
         payload.stravaClientId,
         payload.stravaClientSecret,
       )
+      return ok(await buildStatus())
+    } catch (err) {
+      return fail(err)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.unlock, async (_evt, payload: UnlockPayload) => {
+    try {
+      await services.unlock(payload.passphrase)
       return ok(await buildStatus())
     } catch (err) {
       return fail(err)
@@ -206,3 +228,12 @@ app.on('window-all-closed', async () => {
 app.on('before-quit', async () => {
   await services.dispose()
 })
+
+function getAutoSyncMode(
+  settings: Awaited<ReturnType<Services['loadPersistedSettings']>>,
+): AutoSyncMode {
+  if (settings.shared.watchDir && settings.shared.scheduleCron) return 'both'
+  if (settings.shared.watchDir) return 'watch'
+  if (settings.shared.scheduleCron) return 'schedule'
+  return 'none'
+}

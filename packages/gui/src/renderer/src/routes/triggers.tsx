@@ -16,7 +16,11 @@ function Triggers() {
   if (!status) return null
   return (
     <div className="space-y-10">
-      <SectionHeading index="02" title="触发器" subtitle="新增文件 或 按时检查，都能自动同步。" />
+      <SectionHeading
+        index="02"
+        title="自动同步"
+        subtitle="把手动同步升级成后台执行。文件夹监控负责新文件，定时同步负责按计划拉取 Onelap。"
+      />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <WatchLane current={status.watchDir} />
         <ScheduleLane current={status.scheduleCron} />
@@ -200,7 +204,8 @@ function ScheduleLane({ current }: { current?: string }) {
     <LaneChrome number="02.B" title="定时同步" tag="自动 · Onelap" active={!!current}>
       <div className="space-y-5">
         <p className="text-sm text-fg-muted">
-          每隔一段时间自动去 Onelap 拉一次今天的新活动。挑一个适合你的频率即可。
+          每隔一段时间自动去 Onelap
+          拉一次新活动。启用后，即使你不手动点“立即同步”，后台也会自己执行。
         </p>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

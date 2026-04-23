@@ -21,7 +21,7 @@ const NAV: ReadonlyArray<{
 }> = [
   { to: '/', label: '概览', icon: ActivityIcon },
   { to: '/sources', label: '数据源', icon: Cable },
-  { to: '/triggers', label: '触发器', icon: Timer },
+  { to: '/triggers', label: '自动同步', icon: Timer },
   { to: '/history', label: '历史', icon: HistoryIcon },
   { to: '/settings', label: '设置', icon: SettingsIcon },
 ]
@@ -32,23 +32,35 @@ function RootLayout() {
   const refresh = useSetAtom(refreshStatusAtom)
   const router = useRouter()
   const path = router.state.location.pathname
+  const needsUnlock = status?.needsUnlock ?? false
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  // Funnel unconfigured users to /setup; otherwise they bounce to /.
   useEffect(() => {
     if (!status) return
-    if (!configured && path !== '/setup') router.navigate({ to: '/setup' })
-    if (configured && path === '/setup') router.navigate({ to: '/' })
-  }, [configured, path, status, router])
+    if (needsUnlock && path !== '/unlock') {
+      router.navigate({ to: '/unlock' })
+      return
+    }
+    if (!configured && !needsUnlock && path !== '/setup') {
+      router.navigate({ to: '/setup' })
+      return
+    }
+    if (configured && (path === '/setup' || path === '/unlock')) {
+      router.navigate({ to: '/' })
+    }
+  }, [configured, needsUnlock, path, status, router])
 
   if (!status) return <LaunchScreen />
 
-  const pendingRedirect = (!configured && path !== '/setup') || (configured && path === '/setup')
+  const pendingRedirect =
+    (needsUnlock && path !== '/unlock') ||
+    (!configured && !needsUnlock && path !== '/setup') ||
+    (configured && (path === '/setup' || path === '/unlock'))
   if (pendingRedirect) {
-    return <LaunchScreen bare={!configured} />
+    return <LaunchScreen bare={!configured || needsUnlock} />
   }
 
   // While unconfigured (Setup screen), render a single-column layout without
@@ -103,6 +115,7 @@ function LaunchScreen({ bare = true }: { bare?: boolean }) {
 }
 
 function FramelessHeader({ bare }: { bare?: boolean }) {
+  const status = useAtomValue(statusAtom)
   return (
     <header
       className={cn(
@@ -117,7 +130,7 @@ function FramelessHeader({ bare }: { bare?: boolean }) {
           <span className="font-display text-sm uppercase tracking-stamp text-fg">SweatRelay</span>
           {!bare ? (
             <span className="font-mono text-micro uppercase tracking-wider text-fg-subtle">
-              v0.3 · 骑行同步终端
+              v{status?.appVersion ?? '—'} · 同步控制台
             </span>
           ) : null}
         </div>

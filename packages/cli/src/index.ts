@@ -2,7 +2,7 @@
 import { cac } from 'cac'
 import { authOnelap, authStrava } from './commands/auth.ts'
 import { schedule } from './commands/schedule.ts'
-import { status } from './commands/status.ts'
+import { doctor, status } from './commands/status.ts'
 import { syncBlackbird, syncFolder, syncMagene, syncOnelap } from './commands/sync.ts'
 import { uploadFile } from './commands/upload.ts'
 import { watchDir } from './commands/watch.ts'
@@ -62,12 +62,20 @@ cli
     await schedule(cron, action, { ...(opts.tz ? { timezone: opts.tz } : {}) })
   })
 
-cli.command('status', 'Show config, credentials list, and recent sync history').action(async () => {
-  await status()
-})
+cli
+  .command('status', 'Show current sync mode, shared config, and recent sync history')
+  .action(async () => {
+    await status()
+  })
+
+cli
+  .command('doctor', 'Inspect local config, credentials, and auto-sync readiness')
+  .action(async () => {
+    await doctor()
+  })
 
 cli.help()
-cli.version('0.0.5')
+cli.version('0.0.6')
 
 async function main() {
   cli.parse(process.argv, { run: false })

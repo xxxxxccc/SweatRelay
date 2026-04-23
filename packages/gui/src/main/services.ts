@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import {
   type CredentialStore,
@@ -7,6 +7,7 @@ import {
   KeyringCredentialStore,
   makeTokenGetter,
   ONELAP_ACCOUNT_KEY,
+  readLegacyStravaAppConfig,
   ScheduledTrigger,
   STRAVA_CLIENT_ID_KEY,
   STRAVA_CLIENT_SECRET_KEY,
@@ -19,6 +20,17 @@ import {
   SyncPipeline,
 } from '@sweatrelay/core'
 import { type AppPaths, loadSettings, saveSettings, type ThemePreference } from './state.ts'
+
+export interface ServiceDiagnostics {
+  keyringAvailable: boolean
+  hasEncryptedCredentials: boolean
+  stravaConfigPresent: boolean
+  stravaTokensPresent: boolean
+  onelapCredentialsPresent: boolean
+  sharedConfigPresent: boolean
+}
+
+type RestoreStatus = 'unconfigured' | 'needsUnlock' | 'ready'
 
 /**
  * Prefer the OS keychain. If it fails (headless Linux without libsecret, or the
@@ -59,6 +71,15 @@ export class Services {
   private fileWatcher: FileWatcherTrigger | null = null
   private scheduledTrigger: ScheduledTrigger | null = null
   private listeners = new Set<(outcome: SyncOutcome) => void>()
+  private restoreStatus: RestoreStatus = 'unconfigured'
+  private lastDiagnostics: ServiceDiagnostics = {
+    keyringAvailable: false,
+    hasEncryptedCredentials: false,
+    stravaConfigPresent: false,
+    stravaTokensPresent: false,
+    onelapCredentialsPresent: false,
+    sharedConfigPresent: false,
+  }
 
   constructor(paths: AppPaths) {
     this.paths = paths
@@ -72,33 +93,48 @@ export class Services {
     return this.uploader !== null
   }
 
-  async restorePersistedConfiguration(): Promise<void> {
+  needsUnlock(): boolean {
+    return this.restoreStatus === 'needsUnlock'
+  }
+
+  diagnostics(): ServiceDiagnostics {
+    return this.lastDiagnostics
+  }
+
+  async restorePersistedConfiguration(passphrase?: string): Promise<void> {
     if (this.uploader) return
 
-    const credentials = await this.restoreCredentialStore()
-    if (!credentials) return
-    const config = await this.loadStravaAppConfig(credentials)
-    if (!config) return
+    const restore = await this.resolveRestoreState(passphrase)
+    this.lastDiagnostics = restore.diagnostics
+    this.restoreStatus = restore.status
+    if (restore.status !== 'ready') return
 
-    this.credentials = credentials
+    this.credentials = restore.credentials
     this.oauth = new StravaOAuth({
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
+      clientId: restore.config.clientId,
+      clientSecret: restore.config.clientSecret,
     })
     const oauth = this.oauth
     this.uploader = new StravaUploader({
       getAccessToken: makeTokenGetter({
         load: async () => {
-          const raw = await credentials.get(STRAVA_TOKENS_KEY)
+          const raw = await restore.credentials.get(STRAVA_TOKENS_KEY)
           return raw ? (JSON.parse(raw) as StravaTokens) : null
         },
         save: async (tokens) => {
-          await credentials.set(STRAVA_TOKENS_KEY, JSON.stringify(tokens))
+          await restore.credentials.set(STRAVA_TOKENS_KEY, JSON.stringify(tokens))
         },
         refresh: (refreshToken) => oauth.refresh(refreshToken),
       }),
     })
     await this.restartTriggers()
+  }
+
+  async unlock(passphrase: string): Promise<void> {
+    await this.restorePersistedConfiguration(passphrase)
+    if (!this.configured()) {
+      throw new Error('无法解锁已保存的凭证，请确认密码正确。')
+    }
   }
 
   async configure(
@@ -109,10 +145,6 @@ export class Services {
     this.credentials = await buildCredentialStore(this.paths, passphrase)
     await this.credentials.set(STRAVA_CLIENT_ID_KEY, stravaClientId)
     await this.credentials.set(STRAVA_CLIENT_SECRET_KEY, stravaClientSecret)
-    await saveSettings(this.paths.settingsPath, {
-      stravaClientId: undefined,
-      stravaClientSecret: undefined,
-    })
     this.oauth = new StravaOAuth({
       clientId: stravaClientId,
       clientSecret: stravaClientSecret,
@@ -132,6 +164,8 @@ export class Services {
       }),
     })
     await this.restartTriggers()
+    await this.refreshDiagnostics()
+    this.restoreStatus = 'ready'
   }
 
   async authorizeStrava(openUrl: (url: string) => void): Promise<void> {
@@ -140,6 +174,7 @@ export class Services {
     }
     const tokens = await this.oauth.authorize({ openUrl })
     await this.credentials.set(STRAVA_TOKENS_KEY, JSON.stringify(tokens))
+    await this.refreshDiagnostics()
   }
 
   async authorizeOnelap(account: string, password: string): Promise<void> {
@@ -150,23 +185,28 @@ export class Services {
     // Eagerly try login to surface bad creds
     const refs: unknown[] = []
     for await (const ref of adapter.list({ limit: 1 })) refs.push(ref)
+    await this.refreshDiagnostics()
   }
 
   async setWatchDir(dir: string | null): Promise<void> {
-    await saveSettings(this.paths.settingsPath, { watchDir: dir ?? undefined })
+    await saveSettings(this.paths.settingsPath, { shared: { watchDir: dir ?? undefined } })
     await this.restartTriggers()
+    await this.refreshDiagnostics()
   }
 
   async setSchedule(cron: string | null, timezone?: string): Promise<void> {
     await saveSettings(this.paths.settingsPath, {
-      scheduleCron: cron ?? undefined,
-      scheduleTz: timezone ?? undefined,
+      shared: {
+        scheduleCron: cron ?? undefined,
+        scheduleTz: timezone ?? undefined,
+      },
     })
     await this.restartTriggers()
+    await this.refreshDiagnostics()
   }
 
   async setTheme(theme: ThemePreference): Promise<void> {
-    await saveSettings(this.paths.settingsPath, { theme })
+    await saveSettings(this.paths.settingsPath, { gui: { theme } })
   }
 
   async runOnelapSyncOnce(): Promise<SyncOutcome[]> {
@@ -218,16 +258,16 @@ export class Services {
 
     const settings = await loadSettings(this.paths.settingsPath)
 
-    if (settings.watchDir) {
+    if (settings.shared.watchDir) {
       const pipeline = new SyncPipeline({ uploader: this.uploader, store: this.store })
-      this.fileWatcher = new FileWatcherTrigger({ paths: settings.watchDir })
+      this.fileWatcher = new FileWatcherTrigger({ paths: settings.shared.watchDir })
       await this.fileWatcher.start(async (event) => {
         const outcomes = await pipeline.handle(event)
         for (const o of outcomes) this.emit(o)
       })
     }
 
-    if (settings.scheduleCron && this.credentials) {
+    if (settings.shared.scheduleCron && this.credentials) {
       const adapter = new OnelapApiAdapter({ credentials: this.credentials })
       const pipeline = new SyncPipeline({
         uploader: this.uploader,
@@ -235,8 +275,8 @@ export class Services {
         adapter,
       })
       this.scheduledTrigger = new ScheduledTrigger({
-        cron: settings.scheduleCron,
-        ...(settings.scheduleTz ? { timezone: settings.scheduleTz } : {}),
+        cron: settings.shared.scheduleCron,
+        ...(settings.shared.scheduleTz ? { timezone: settings.shared.scheduleTz } : {}),
       })
       await this.scheduledTrigger.start(async (event) => {
         const outcomes = await pipeline.handle(event)
@@ -251,8 +291,7 @@ export class Services {
     this.listeners.clear()
   }
 
-  private async restoreCredentialStore(): Promise<CredentialStore | null> {
-    const passphrase = process.env.SWEATRELAY_PASSPHRASE
+  private async restoreCredentialStore(passphrase?: string): Promise<CredentialStore | null> {
     const hasEncryptedFile = await fileExists(this.paths.credsPath)
 
     try {
@@ -297,21 +336,129 @@ export class Services {
       return { clientId: storedId, clientSecret: storedSecret }
     }
 
-    const settings = await loadSettings(this.paths.settingsPath)
-    if (!settings.stravaClientId || !settings.stravaClientSecret) return null
+    const settings = await this.readRawSettings()
+    const legacy = readLegacyStravaAppConfig(settings)
+    if (!legacy) return null
 
     await Promise.all([
-      credentials.set(STRAVA_CLIENT_ID_KEY, settings.stravaClientId),
-      credentials.set(STRAVA_CLIENT_SECRET_KEY, settings.stravaClientSecret),
-      saveSettings(this.paths.settingsPath, {
-        stravaClientId: undefined,
-        stravaClientSecret: undefined,
-      }),
+      credentials.set(STRAVA_CLIENT_ID_KEY, legacy.clientId),
+      credentials.set(STRAVA_CLIENT_SECRET_KEY, legacy.clientSecret),
     ])
 
+    return legacy
+  }
+
+  private async resolveRestoreState(passphrase?: string): Promise<
+    | {
+        status: 'ready'
+        diagnostics: ServiceDiagnostics
+        credentials: CredentialStore
+        config: { clientId: string; clientSecret: string }
+      }
+    | {
+        status: Exclude<RestoreStatus, 'ready'>
+        diagnostics: ServiceDiagnostics
+      }
+  > {
+    const settings = await loadSettings(this.paths.settingsPath)
+    const keyringAvailable = await this.isKeyringAvailable()
+    const hasEncryptedCredentials = await fileExists(this.paths.credsPath)
+    const credentials = await this.restoreCredentialStore(
+      passphrase ?? process.env.SWEATRELAY_PASSPHRASE,
+    )
+    const rawSettings = await this.readRawSettings()
+    const legacyConfig = readLegacyStravaAppConfig(rawSettings)
+
+    if (!credentials) {
+      return {
+        status: hasEncryptedCredentials ? 'needsUnlock' : 'unconfigured',
+        diagnostics: {
+          keyringAvailable,
+          hasEncryptedCredentials,
+          stravaConfigPresent: legacyConfig !== null,
+          stravaTokensPresent: false,
+          onelapCredentialsPresent: false,
+          sharedConfigPresent: hasSharedConfig(settings),
+        },
+      }
+    }
+
+    const config = await this.loadStravaAppConfig(credentials)
+    const [stravaTokensPresent, onelapCredentialsPresent] = await Promise.all([
+      credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
+      credentials.get(ONELAP_ACCOUNT_KEY).then(Boolean),
+    ])
+
+    const diagnostics: ServiceDiagnostics = {
+      keyringAvailable,
+      hasEncryptedCredentials,
+      stravaConfigPresent: config !== null,
+      stravaTokensPresent,
+      onelapCredentialsPresent,
+      sharedConfigPresent: hasSharedConfig(settings),
+    }
+
+    if (!config) {
+      return {
+        status: 'unconfigured',
+        diagnostics,
+      }
+    }
+
     return {
-      clientId: settings.stravaClientId,
-      clientSecret: settings.stravaClientSecret,
+      status: 'ready',
+      diagnostics,
+      credentials,
+      config,
+    }
+  }
+
+  private async refreshDiagnostics(): Promise<void> {
+    if (!this.credentials) {
+      this.lastDiagnostics = (await this.resolveRestoreState()).diagnostics
+      return
+    }
+
+    const [
+      settings,
+      keyringAvailable,
+      hasEncryptedCredentials,
+      stravaConfigPresent,
+      stravaTokensPresent,
+    ] = await Promise.all([
+      loadSettings(this.paths.settingsPath),
+      this.isKeyringAvailable(),
+      fileExists(this.paths.credsPath),
+      this.loadStravaAppConfig(this.credentials).then(Boolean),
+      this.credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
+    ])
+
+    this.lastDiagnostics = {
+      keyringAvailable,
+      hasEncryptedCredentials,
+      stravaConfigPresent,
+      stravaTokensPresent,
+      onelapCredentialsPresent: Boolean(await this.credentials.get(ONELAP_ACCOUNT_KEY)),
+      sharedConfigPresent: hasSharedConfig(settings),
+    }
+  }
+
+  private async isKeyringAvailable(): Promise<boolean> {
+    try {
+      const keyring = new KeyringCredentialStore({ service: 'SweatRelay' })
+      await keyring.get('__probe__')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async readRawSettings(): Promise<unknown> {
+    try {
+      const raw = await readFile(this.paths.settingsPath, 'utf8')
+      return JSON.parse(raw) as unknown
+    } catch {
+      return null
     }
   }
 }
@@ -323,4 +470,10 @@ async function fileExists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function hasSharedConfig(
+  settings: Awaited<ReturnType<Services['loadPersistedSettings']>>,
+): boolean {
+  return Boolean(settings.shared.watchDir || settings.shared.scheduleCron)
 }

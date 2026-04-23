@@ -27,7 +27,19 @@ export {
   SyncPipeline,
   type SyncPipelineOptions,
 } from './pipeline/index.ts'
-export { SyncedStore, type SyncedStoreOptions, type SyncRecord } from './state/index.ts'
+export {
+  type GuiSettings,
+  mergePersistedSettings,
+  normalizePersistedSettings,
+  type PersistedSettings,
+  type PersistedSettingsPatch,
+  readLegacyStravaAppConfig,
+  type SharedSettings,
+  SyncedStore,
+  type SyncedStoreOptions,
+  type SyncRecord,
+  type ThemePreference,
+} from './state/index.ts'
 export {
   FileWatcherTrigger,
   type FileWatcherTriggerOptions,

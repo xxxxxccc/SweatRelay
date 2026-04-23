@@ -1,3 +1,4 @@
+import type { AppStatus } from '@shared/ipc.ts'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useAtomValue, useSetAtom } from 'jotai'
 import {
@@ -20,6 +21,8 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { refreshStatusAtom, statusAtom } from '@/state/atoms'
 
+type DashboardStatus = AppStatus
+
 function Dashboard() {
   const status = useAtomValue(statusAtom)
   const refresh = useSetAtom(refreshStatusAtom)
@@ -34,14 +37,9 @@ function Dashboard() {
   const weekStart = Date.now() - 7 * 24 * 60 * 60 * 1000
   const weekCount = records.filter((r) => Date.parse(r.syncedAt) > weekStart).length
 
-  // Ready = Strava authorized AND at least one data source configured
-  // (Onelap account, folder watch, or scheduled poll all count).
-  const hasAnySource = status.onelapConnected || !!status.watchDir
+  const hasAnySource = status.onelapConnected || !!status.watchDir || !!status.scheduleCron
   const ready = status.stravaConnected && hasAnySource
   const liveTriggers = (status.watchDir ? 1 : 0) + (status.scheduleCron ? 1 : 0)
-  // The "Sync now" button only makes sense for Onelap (pulls today's rides).
-  // For folder-only users, syncing is automatic on file drop.
-  const canManualSync = status.stravaConnected && status.onelapConnected
 
   async function syncNow() {
     setBusy(true)
@@ -68,28 +66,33 @@ function Dashboard() {
       <SectionHeading
         index="00"
         title="概览"
-        subtitle={ready ? '所有源已就绪。立即同步或交给后台触发器。' : '配置数据源后才能开始同步。'}
+        subtitle={dashboardSubtitle(status)}
         action={
-          <Button
-            onClick={syncNow}
-            disabled={busy || !canManualSync}
-            size="lg"
-            className="group min-w-40"
-          >
-            {busy ? (
-              <>
-                <RefreshCw className="size-4 animate-spin" />
-                同步中
-              </>
-            ) : (
-              <>
-                <Zap className="size-4" />
-                立即同步
-              </>
-            )}
-          </Button>
+          <div className="flex flex-col items-end gap-2">
+            <Button
+              onClick={syncNow}
+              disabled={busy || !status.manualSyncAvailable}
+              size="lg"
+              className="group min-w-40"
+            >
+              {busy ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" />
+                  同步中
+                </>
+              ) : (
+                <>
+                  <Zap className="size-4" />
+                  立即同步
+                </>
+              )}
+            </Button>
+            <p className="max-w-64 text-right text-xs text-fg-muted">{manualSyncHint(status)}</p>
+          </div>
         }
       />
+
+      <SyncModeGrid status={status} />
 
       <section className="grid grid-cols-12 gap-6">
         {ready ? (
@@ -134,7 +137,7 @@ function Dashboard() {
             mono
           />
           <StatusTile
-            label="定时同步"
+            label="Onelap 定时"
             value={status.scheduleCron ? '运行中' : '未启用'}
             tone={status.scheduleCron ? 'live' : 'idle'}
             sub={status.scheduleCron ?? '未配置'}
@@ -402,7 +405,7 @@ function EmptyRail() {
       <Eye className="size-5 text-fg-subtle" />
       <div>
         <p className="text-fg">还没有同步记录。</p>
-        <p className="mt-0.5 text-xs">连上数据源后，第一次同步的活动会出现在这里。</p>
+        <p className="mt-0.5 text-xs">先完成一次同步，或启用后台自动同步后再回来查看。</p>
       </div>
     </div>
   )
@@ -437,6 +440,99 @@ const SOURCE_LABELS: Record<string, string> = {
   'magene-folder': 'Magene',
   'blackbird-folder': 'Blackbird',
   folder: 'Folder',
+}
+
+function SyncModeGrid({ status }: { status: DashboardStatus }) {
+  return (
+    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <SyncModeCard
+        label="当前模式"
+        value={currentModeLabel(status)}
+        sub={currentModeDescription(status)}
+      />
+      <SyncModeCard
+        label="自动同步"
+        value={status.autoSyncEnabled ? '已启用' : '未启用'}
+        sub={status.autoSyncEnabled ? '后台会按已配置触发器自动执行' : '当前仅支持手动触发'}
+      />
+      <SyncModeCard
+        label="自动源"
+        value={autoSourceLabel(status.autoSyncMode)}
+        sub={autoSourceDescription(status)}
+      />
+      <SyncModeCard
+        label="手动同步"
+        value={status.manualSyncAvailable ? '可用' : '不可用'}
+        sub={manualSyncHint(status)}
+      />
+    </section>
+  )
+}
+
+function SyncModeCard({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface px-5 py-4">
+      <p className="font-mono text-micro uppercase tracking-stamp text-fg-muted">{label}</p>
+      <p className="mt-3 font-display text-2xl uppercase leading-none text-fg">{value}</p>
+      <p className="mt-2 text-xs text-fg-muted">{sub}</p>
+    </div>
+  )
+}
+
+function dashboardSubtitle(status: DashboardStatus): string {
+  if (!status.stravaConfigPresent) {
+    return '先完成 Strava 配置，再把这个应用当作同步控制台来用。'
+  }
+  if (!status.stravaConnected) {
+    return 'Strava 已配置，但还没授权。完成授权后才能开始同步。'
+  }
+  if (!status.onelapConnected && !status.watchDir && !status.scheduleCron) {
+    return '还没有接入任何数据来源。先连接 Onelap 或启用文件夹监控。'
+  }
+  if (!status.autoSyncEnabled) {
+    return '当前仅支持手动同步。想让它自己跑，需要启用文件夹监控或定时同步。'
+  }
+  return `同步控制台已就绪。后台自动同步来源：${autoSourceLabel(status.autoSyncMode)}。`
+}
+
+function manualSyncHint(status: DashboardStatus): string {
+  if (!status.stravaConnected) return '先完成 Strava 授权后，手动同步才可用。'
+  if (!status.onelapConnected) return '手动同步只拉取 Onelap，需要先连接 Onelap 账号。'
+  if (!status.autoSyncEnabled) return '这是当前唯一同步方式。'
+  return '也可以等待后台自动执行。'
+}
+
+function currentModeLabel(status: DashboardStatus): string {
+  if (!status.stravaConnected) return '等待授权'
+  if (!status.autoSyncEnabled && status.manualSyncAvailable) return '手动同步'
+  if (status.autoSyncMode === 'both') return '手动 + 自动'
+  if (status.autoSyncMode === 'watch') return '文件夹自动'
+  if (status.autoSyncMode === 'schedule') return '定时自动'
+  return '待配置'
+}
+
+function currentModeDescription(status: DashboardStatus): string {
+  if (!status.stravaConnected) return '先授权 Strava，再决定手动或自动同步。'
+  if (!status.autoSyncEnabled && status.manualSyncAvailable)
+    return 'Onelap 已连接，点击右上角即可立即拉取。'
+  if (!status.autoSyncEnabled) return '还没有可用的自动同步配置。'
+  return autoSourceDescription(status)
+}
+
+function autoSourceLabel(mode: DashboardStatus['autoSyncMode']): string {
+  if (mode === 'both') return '文件夹 + Onelap'
+  if (mode === 'watch') return '文件夹'
+  if (mode === 'schedule') return 'Onelap 定时'
+  return '无'
+}
+
+function autoSourceDescription(status: DashboardStatus): string {
+  if (status.autoSyncMode === 'watch') return status.watchDir ?? '监控目录已启用'
+  if (status.autoSyncMode === 'schedule') return status.scheduleCron ?? '定时同步已启用'
+  if (status.autoSyncMode === 'both') {
+    return `${status.watchDir ?? '文件夹监控'} + ${status.scheduleCron ?? '定时同步'}`
+  }
+  return '未启用自动同步'
 }
 
 function sourceLabel(source: string): string {

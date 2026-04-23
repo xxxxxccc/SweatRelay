@@ -23,7 +23,7 @@ function Sources() {
       <SectionHeading
         index="01"
         title="数据源"
-        subtitle="授权数据来源 · 工具不会把你的密码发给任何第三方。"
+        subtitle="连接输入端与唯一原生目标端 Strava。Intervals.icu 等分析平台请在外部服务中通过 Strava 接入。"
       />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <StravaPanel
@@ -125,7 +125,9 @@ function StravaPanel({
           </Datum>
         </div>
 
-        <p className="text-sm text-fg-muted">点击下方按钮，在浏览器中完成 Strava 授权即可。</p>
+        <p className="text-sm text-fg-muted">
+          SweatRelay 只原生上传到 Strava。完成一次授权后，后续同步都会走这条链路。
+        </p>
 
         {err ? (
           <Alert variant="destructive">
