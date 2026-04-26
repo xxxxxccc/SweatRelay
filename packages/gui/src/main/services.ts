@@ -5,6 +5,7 @@ import {
   EncryptedFileCredentialStore,
   FileWatcherTrigger,
   KeyringCredentialStore,
+  MirroredCredentialStore,
   makeTokenGetter,
   ONELAP_ACCOUNT_KEY,
   readLegacyStravaAppConfig,
@@ -47,15 +48,10 @@ async function buildCredentialStore(paths: AppPaths, passphrase: string): Promis
     // Smoke-test: a read of a (likely missing) key should not throw if the
     // backend is healthy.
     await keyring.get('__probe__')
-    // First-run migration from the file store, if it has anything.
-    const fileKeys = await file.keys().catch(() => [] as string[])
-    if (fileKeys.length > 0) {
-      const ringKeys = await keyring.keys()
-      if (ringKeys.length === 0) {
-        await keyring.importFrom(file)
-      }
-    }
-    return keyring
+    const mirrored = new MirroredCredentialStore(keyring, [file])
+    await mirrored.mirrorFrom(file).catch(() => 0)
+    await mirrored.mirrorFrom(keyring).catch(() => 0)
+    return mirrored
   } catch {
     return file
   }
@@ -71,6 +67,7 @@ export class Services {
   private fileWatcher: FileWatcherTrigger | null = null
   private scheduledTrigger: ScheduledTrigger | null = null
   private listeners = new Set<(outcome: SyncOutcome) => void>()
+  private errorListeners = new Set<(scope: string, err: unknown) => void>()
   private restoreStatus: RestoreStatus = 'unconfigured'
   private lastDiagnostics: ServiceDiagnostics = {
     keyringAvailable: false,
@@ -245,8 +242,17 @@ export class Services {
     return () => this.listeners.delete(listener)
   }
 
+  onError(listener: (scope: string, err: unknown) => void): () => void {
+    this.errorListeners.add(listener)
+    return () => this.errorListeners.delete(listener)
+  }
+
   private emit(outcome: SyncOutcome): void {
     for (const listener of this.listeners) listener(outcome)
+  }
+
+  private emitError(scope: string, err: unknown): void {
+    for (const listener of this.errorListeners) listener(scope, err)
   }
 
   private async restartTriggers(): Promise<void> {
@@ -262,8 +268,12 @@ export class Services {
       const pipeline = new SyncPipeline({ uploader: this.uploader, store: this.store })
       this.fileWatcher = new FileWatcherTrigger({ paths: settings.shared.watchDir })
       await this.fileWatcher.start(async (event) => {
-        const outcomes = await pipeline.handle(event)
-        for (const o of outcomes) this.emit(o)
+        try {
+          const outcomes = await pipeline.handle(event)
+          for (const o of outcomes) this.emit(o)
+        } catch (err) {
+          this.emitError('sync:watch', err)
+        }
       })
     }
 
@@ -279,8 +289,12 @@ export class Services {
         ...(settings.shared.scheduleTz ? { timezone: settings.shared.scheduleTz } : {}),
       })
       await this.scheduledTrigger.start(async (event) => {
-        const outcomes = await pipeline.handle(event)
-        for (const o of outcomes) this.emit(o)
+        try {
+          const outcomes = await pipeline.handle(event)
+          for (const o of outcomes) this.emit(o)
+        } catch (err) {
+          this.emitError('sync:schedule', err)
+        }
       })
     }
   }
@@ -289,6 +303,7 @@ export class Services {
     await this.fileWatcher?.stop()
     await this.scheduledTrigger?.stop()
     this.listeners.clear()
+    this.errorListeners.clear()
   }
 
   private async restoreCredentialStore(passphrase?: string): Promise<CredentialStore | null> {
@@ -302,13 +317,10 @@ export class Services {
           path: this.paths.credsPath,
           passphrase,
         })
-        const [fileKeys, keyringKeys] = await Promise.all([
-          file.keys().catch(() => [] as string[]),
-          keyring.keys(),
-        ])
-        if (fileKeys.length > 0 && keyringKeys.length === 0) {
-          await keyring.importFrom(file)
-        }
+        const mirrored = new MirroredCredentialStore(keyring, [file])
+        await mirrored.mirrorFrom(file).catch(() => 0)
+        await mirrored.mirrorFrom(keyring).catch(() => 0)
+        return mirrored
       } else if ((await keyring.keys()).length === 0 && hasEncryptedFile) {
         return null
       }

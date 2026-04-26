@@ -13,6 +13,7 @@ import {
   type SetWatchDirPayload,
   type UnlockPayload,
 } from '../shared/ipc.ts'
+import { logApp, logAppError, logSyncOutcomes } from './logging.ts'
 import { Services } from './services.ts'
 import { appPaths } from './state.ts'
 import { configureAutoUpdates } from './updater.ts'
@@ -23,7 +24,8 @@ const services = new Services(appPaths())
 function ok<T>(value: T): IpcResult<T> {
   return { ok: true, value }
 }
-function fail(err: unknown): IpcResult<never> {
+function fail(scope: string, err: unknown): IpcResult<never> {
+  logAppError(scope, err)
   const e = err as Error
   return { ok: false, error: { name: e.name ?? 'Error', message: e.message ?? String(err) } }
 }
@@ -104,13 +106,19 @@ function emit(outcome: SyncOutcome): void {
 }
 
 function registerIpc(): void {
-  services.onSyncEvent(emit)
+  services.onSyncEvent((outcome) => {
+    logSyncOutcomes('sync:event', [outcome])
+    emit(outcome)
+  })
+  services.onError((scope, err) => {
+    logAppError(scope, err)
+  })
 
   ipcMain.handle(IPC_CHANNELS.status, async () => {
     try {
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.status, err)
     }
   })
 
@@ -123,7 +131,7 @@ function registerIpc(): void {
       )
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.configure, err)
     }
   })
 
@@ -132,7 +140,7 @@ function registerIpc(): void {
       await services.unlock(payload.passphrase)
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.unlock, err)
     }
   })
 
@@ -143,7 +151,7 @@ function registerIpc(): void {
       })
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.authStrava, err)
     }
   })
 
@@ -152,7 +160,7 @@ function registerIpc(): void {
       await services.authorizeOnelap(payload.account, payload.password)
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.authOnelap, err)
     }
   })
 
@@ -161,7 +169,7 @@ function registerIpc(): void {
       await services.setWatchDir(payload.dir)
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.setWatchDir, err)
     }
   })
 
@@ -170,7 +178,7 @@ function registerIpc(): void {
       await services.setSchedule(payload.cron, payload.timezone)
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.setSchedule, err)
     }
   })
 
@@ -179,17 +187,19 @@ function registerIpc(): void {
       await services.setTheme(payload.theme)
       return ok(await buildStatus())
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.setTheme, err)
     }
   })
 
   ipcMain.handle(IPC_CHANNELS.syncOnelap, async () => {
     try {
+      logApp('sync:onelap start')
       const outcomes = await services.runOnelapSyncOnce()
+      logSyncOutcomes('sync:onelap complete', outcomes)
       for (const o of outcomes) emit(o)
       return ok(outcomes)
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.syncOnelap, err)
     }
   })
 
@@ -202,14 +212,14 @@ function registerIpc(): void {
       if (result.canceled || result.filePaths.length === 0) return ok(null)
       return ok(result.filePaths[0] ?? null)
     } catch (err) {
-      return fail(err)
+      return fail(IPC_CHANNELS.pickDirectory, err)
     }
   })
 }
 
 app.whenReady().then(async () => {
   await services.restorePersistedConfiguration().catch((err) => {
-    console.error('[startup] failed to restore persisted GUI configuration:', err)
+    logAppError('startup:restore', err)
   })
   registerIpc()
   configureAutoUpdates()

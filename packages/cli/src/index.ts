@@ -75,7 +75,7 @@ cli
   })
 
 cli.help()
-cli.version('0.0.7')
+cli.version('0.0.8')
 
 async function main() {
   cli.parse(process.argv, { run: false })

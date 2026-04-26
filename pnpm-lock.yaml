@@ -66,6 +66,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@napi-rs/keyring':
+        specifier: ^1.1.0
+        version: 1.2.0
       '@sweatrelay/adapter-blackbird':
         specifier: workspace:*
         version: link:../adapter-blackbird
@@ -100,6 +103,9 @@ importers:
       '@garmin/fitsdk':
         specifier: ^21.158.0
         version: 21.201.0
+      '@napi-rs/keyring':
+        specifier: ^1.1.0
+        version: 1.2.0
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3

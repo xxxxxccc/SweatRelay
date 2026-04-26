@@ -14,6 +14,7 @@ export {
   KeyringCredentialStore,
   type KeyringCredentialStoreOptions,
   MemoryCredentialStore,
+  MirroredCredentialStore,
   ONELAP_ACCOUNT_KEY,
   ONELAP_PASSWORD_KEY,
   ONELAP_SESSION_KEY,

@@ -5,6 +5,7 @@ import {
   type CredentialStore,
   EncryptedFileCredentialStore,
   KeyringCredentialStore,
+  MirroredCredentialStore,
   makeTokenGetter,
   normalizePersistedSettings,
   ONELAP_ACCOUNT_KEY,
@@ -66,13 +67,10 @@ export async function buildCredentialStore(
     await keyring.get('__probe__')
     if (passphrase) {
       const file = new EncryptedFileCredentialStore({ path: paths.credsPath, passphrase })
-      const [fileKeys, keyringKeys] = await Promise.all([
-        file.keys().catch(() => [] as string[]),
-        keyring.keys(),
-      ])
-      if (fileKeys.length > 0 && keyringKeys.length === 0) {
-        await keyring.importFrom(file)
-      }
+      const mirrored = new MirroredCredentialStore(keyring, [file])
+      await mirrored.mirrorFrom(file).catch(() => 0)
+      await mirrored.mirrorFrom(keyring).catch(() => 0)
+      return mirrored
     } else if ((await keyring.keys()).length === 0 && hasEncryptedFile) {
       return buildEncryptedFileStore(paths.credsPath, hasEncryptedFile, passphrase)
     }

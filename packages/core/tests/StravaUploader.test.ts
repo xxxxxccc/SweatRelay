@@ -24,6 +24,7 @@ describe('StravaUploader', () => {
     return new StravaUploader({
       getAccessToken: async () => 'fake-token',
       poll: { initialDelayMs: 5, maxDelayMs: 5, timeoutMs: 1000, ...opts },
+      requestRetryDelayMs: 1,
     })
   }
 
@@ -81,6 +82,37 @@ describe('StravaUploader', () => {
     await promise.catch((err: DuplicateActivityError) => {
       expect(err.existingActivityId).toBe(99887)
     })
+  })
+
+  it('retries transient upload transport failures', async () => {
+    const pool = agent.get(STRAVA_ORIGIN)
+    pool
+      .intercept({ path: '/api/v3/uploads', method: 'POST' })
+      .replyWithError(Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }))
+    pool.intercept({ path: '/api/v3/uploads', method: 'POST' }).reply(201, {
+      id: 103,
+      id_str: '103',
+      external_id: 'ext-retry',
+      error: null,
+      status: 'Your activity is still being processed.',
+      activity_id: null,
+    })
+    pool.intercept({ path: '/api/v3/uploads/103', method: 'GET' }).reply(200, {
+      id: 103,
+      id_str: '103',
+      external_id: 'ext-retry',
+      error: null,
+      status: 'Your activity is ready.',
+      activity_id: 45678,
+    })
+
+    const uploader = makeUploader()
+    const result = await uploader.upload(Buffer.from('fakefit'), {
+      dataType: 'fit',
+      externalId: 'ext-retry',
+    })
+
+    expect(result.activityId).toBe(45678)
   })
 
   it('throws UploadTimeoutError when activity_id never appears', async () => {

@@ -53,6 +53,10 @@ export interface StravaUploaderConfig {
   getAccessToken(): Promise<string>
   /** Override poll defaults. */
   poll?: PollOptions
+  /** Retry transient Strava transport failures. Defaults to 3 attempts. */
+  requestAttempts?: number
+  /** Initial retry delay for transient transport failures. Defaults to 500ms. */
+  requestRetryDelayMs?: number
 }
 
 export class StravaUploader {
@@ -69,20 +73,22 @@ export class StravaUploader {
 
   private async startUpload(file: Buffer, opts: UploadOptions): Promise<string> {
     const accessToken = await this.config.getAccessToken()
-    const form = new FormData()
-    form.append('data_type', opts.dataType)
-    if (opts.name) form.append('name', opts.name)
-    if (opts.description) form.append('description', opts.description)
-    if (opts.externalId) form.append('external_id', opts.externalId)
-    if (opts.trainer) form.append('trainer', '1')
-    if (opts.commute) form.append('commute', '1')
-    const filename = `upload.${opts.dataType.replace('.gz', '')}`
-    form.append('file', new Blob([new Uint8Array(file)]), filename)
+    const res = await this.requestWithRetry('Strava upload start', () => {
+      const form = new FormData()
+      form.append('data_type', opts.dataType)
+      if (opts.name) form.append('name', opts.name)
+      if (opts.description) form.append('description', opts.description)
+      if (opts.externalId) form.append('external_id', opts.externalId)
+      if (opts.trainer) form.append('trainer', '1')
+      if (opts.commute) form.append('commute', '1')
+      const filename = `upload.${opts.dataType.replace('.gz', '')}`
+      form.append('file', new Blob([new Uint8Array(file)]), filename)
 
-    const res = await request(`${API_BASE}/uploads`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${accessToken}` },
-      body: form,
+      return request(`${API_BASE}/uploads`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${accessToken}` },
+        body: form,
+      })
     })
 
     const text = await res.body.text()
@@ -106,6 +112,29 @@ export class StravaUploader {
       throwForUploadError(json)
     }
     return json.id_str
+  }
+
+  private async requestWithRetry(
+    operation: string,
+    makeRequest: () => ReturnType<typeof request>,
+  ): Promise<Awaited<ReturnType<typeof request>>> {
+    const attempts = this.config.requestAttempts ?? 3
+    const initialDelay = this.config.requestRetryDelayMs ?? 500
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await makeRequest()
+      } catch (err) {
+        if (!isRetriableTransportError(err) || attempt === attempts) {
+          throw new StravaApiError(
+            `${operation} request failed after ${attempt} attempt${attempt === 1 ? '' : 's'}: ${formatTransportError(err)}`,
+            0,
+            { cause: formatTransportError(err) },
+          )
+        }
+        await sleep(initialDelay * attempt)
+      }
+    }
+    throw new StravaApiError(`${operation} request failed`, 0)
   }
 
   private async pollUntilDone(uploadId: string, externalId?: string): Promise<UploadResult> {
@@ -136,10 +165,12 @@ export class StravaUploader {
 
   private async fetchStatus(uploadId: string): Promise<UploadStatusResponse> {
     const accessToken = await this.config.getAccessToken()
-    const res = await request(`${API_BASE}/uploads/${uploadId}`, {
-      method: 'GET',
-      headers: { authorization: `Bearer ${accessToken}` },
-    })
+    const res = await this.requestWithRetry('Strava upload status', () =>
+      request(`${API_BASE}/uploads/${uploadId}`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${accessToken}` },
+      }),
+    )
     handleRateLimit(res.statusCode, res.headers)
     const json = (await res.body.json()) as UploadStatusResponse
     if (res.statusCode >= 400) {
@@ -198,4 +229,24 @@ function handleRateLimit(
   const retryAfterHeader = Array.isArray(headerVal) ? headerVal[0] : headerVal
   const retryAfter = retryAfterHeader ? Number(retryAfterHeader) * 1000 : retryAfterMs
   throw new RateLimitError(`Strava rate limit hit, retry in ${retryAfter}ms`, retryAfter)
+}
+
+function isRetriableTransportError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const code = 'code' in err ? String(err.code) : ''
+  return (
+    code === 'UND_ERR_SOCKET' ||
+    code === 'UND_ERR_CONNECT_TIMEOUT' ||
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    /socket|connect timeout|other side closed/i.test(err.message)
+  )
+}
+
+function formatTransportError(err: unknown): string {
+  if (err instanceof Error) {
+    const code = 'code' in err ? ` ${(err as Error & { code?: string }).code}` : ''
+    return `${err.name}${code}: ${err.message}`
+  }
+  return String(err)
 }

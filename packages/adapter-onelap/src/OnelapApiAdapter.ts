@@ -12,7 +12,12 @@ import {
   parseFit,
   SweatRelayError,
 } from '@sweatrelay/core'
-import { OnelapApiClient, type OnelapSession, parseOnelapDate } from './OnelapApiClient.ts'
+import {
+  isOnelapSessionFailure,
+  OnelapApiClient,
+  type OnelapSession,
+  parseOnelapDate,
+} from './OnelapApiClient.ts'
 
 export interface OnelapApiAdapterOptions {
   credentials: CredentialStore
@@ -39,7 +44,7 @@ export class OnelapApiAdapter implements SourceAdapter {
 
   async *list(opts?: ListOptions): AsyncIterable<ActivityRef> {
     const session = await this.ensureSession()
-    const rows = await this.client.listActivities(session)
+    const rows = await this.listActivitiesWithSessionRetry(session)
     let count = 0
     for (const row of rows) {
       if (opts?.limit && count >= opts.limit) break
@@ -84,6 +89,10 @@ export class OnelapApiAdapter implements SourceAdapter {
         // fall through to re-login
       }
     }
+    return this.loginAndCacheSession()
+  }
+
+  private async loginAndCacheSession(): Promise<OnelapSession> {
     const account = await this.opts.credentials.get(ONELAP_ACCOUNT_KEY)
     const password = await this.opts.credentials.get(ONELAP_PASSWORD_KEY)
     if (!account || !password) {
@@ -94,5 +103,18 @@ export class OnelapApiAdapter implements SourceAdapter {
     const session = await this.client.login(account, password)
     await this.opts.credentials.set(ONELAP_SESSION_KEY, JSON.stringify(session))
     return session
+  }
+
+  private async listActivitiesWithSessionRetry(
+    session: OnelapSession,
+  ): Promise<Awaited<ReturnType<OnelapApiClient['listActivities']>>> {
+    try {
+      return await this.client.listActivities(session)
+    } catch (err) {
+      if (!isOnelapSessionFailure(err)) throw err
+      await this.opts.credentials.delete(ONELAP_SESSION_KEY)
+      const refreshed = await this.loginAndCacheSession()
+      return this.client.listActivities(refreshed)
+    }
   }
 }

@@ -16,3 +16,4 @@ export {
   type KeyringCredentialStoreOptions,
 } from './KeyringCredentialStore.ts'
 export { MemoryCredentialStore } from './MemoryCredentialStore.ts'
+export { MirroredCredentialStore } from './MirroredCredentialStore.ts'
