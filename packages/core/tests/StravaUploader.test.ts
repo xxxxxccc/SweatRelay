@@ -30,13 +30,24 @@ describe('StravaUploader', () => {
 
   it('uploads and returns activity URL after polling completes', async () => {
     const pool = agent.get(STRAVA_ORIGIN)
-    pool.intercept({ path: '/api/v3/uploads', method: 'POST' }).reply(201, {
-      id: 99,
-      id_str: '99',
-      external_id: 'ext-1',
-      error: null,
-      status: 'Your activity is still being processed.',
-      activity_id: null,
+    pool.intercept({ path: '/api/v3/uploads', method: 'POST' }).reply(201, (opts) => {
+      const headers = opts.headers as Record<string, string>
+      const body = opts.body as Buffer
+      expect(headers['content-type']).toMatch(/^multipart\/form-data; boundary=sweatrelay-/)
+      expect(headers['content-length']).toBe(String(body.length))
+      expect(body.toString()).toContain('Content-Disposition: form-data; name="data_type"')
+      expect(body.toString()).toContain('Content-Disposition: form-data; name="external_id"')
+      expect(body.toString()).toContain(
+        'Content-Disposition: form-data; name="file"; filename="upload.fit"',
+      )
+      return {
+        id: 99,
+        id_str: '99',
+        external_id: 'ext-1',
+        error: null,
+        status: 'Your activity is still being processed.',
+        activity_id: null,
+      }
     })
     pool
       .intercept({ path: '/api/v3/uploads/99', method: 'GET' })
@@ -81,6 +92,37 @@ describe('StravaUploader', () => {
     await expect(promise).rejects.toBeInstanceOf(DuplicateActivityError)
     await promise.catch((err: DuplicateActivityError) => {
       expect(err.existingActivityId).toBe(99887)
+    })
+  })
+
+  it('throws DuplicateActivityError when Strava reports a duplicate with an activity link', async () => {
+    const pool = agent.get(STRAVA_ORIGIN)
+    pool.intercept({ path: '/api/v3/uploads', method: 'POST' }).reply(201, {
+      id: 104,
+      id_str: '104',
+      external_id: 'ext-4.fit',
+      error: null,
+      status: 'Your activity is still being processed.',
+      activity_id: null,
+    })
+    pool.intercept({ path: '/api/v3/uploads/104', method: 'GET' }).reply(200, {
+      id: 104,
+      id_str: '104',
+      external_id: 'ext-4.fit',
+      error:
+        "ext-4.fit duplicate of <a href='/activities/18260018524' target='_blank'>Morning Ride</a>",
+      status: 'There was an error processing your activity.',
+      activity_id: null,
+    })
+
+    const uploader = makeUploader()
+    const promise = uploader.upload(Buffer.from('x'), {
+      dataType: 'fit',
+      externalId: 'ext-4',
+    })
+    await expect(promise).rejects.toBeInstanceOf(DuplicateActivityError)
+    await promise.catch((err: DuplicateActivityError) => {
+      expect(err.existingActivityId).toBe(18260018524)
     })
   })
 

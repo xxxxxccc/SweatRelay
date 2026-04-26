@@ -214,7 +214,7 @@ export class Services {
       store: this.store,
       adapter,
     })
-    return pipeline.handleAdapterPull()
+    return pipeline.handleAdapterPull({ since: daysAgo(7) })
   }
 
   async getOnelapAccount(): Promise<string | null> {
@@ -488,4 +488,11 @@ function hasSharedConfig(
   settings: Awaited<ReturnType<Services['loadPersistedSettings']>>,
 ): boolean {
   return Boolean(settings.shared.watchDir || settings.shared.scheduleCron)
+}
+
+function daysAgo(days: number): Date {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  date.setHours(0, 0, 0, 0)
+  return date
 }

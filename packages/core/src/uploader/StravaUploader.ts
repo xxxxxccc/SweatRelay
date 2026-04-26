@@ -1,4 +1,5 @@
-import { FormData, request } from 'undici'
+import { randomUUID } from 'node:crypto'
+import { request } from 'undici'
 import type { FileFormat } from '../activity/Activity.ts'
 import {
   DuplicateActivityError,
@@ -73,21 +74,30 @@ export class StravaUploader {
 
   private async startUpload(file: Buffer, opts: UploadOptions): Promise<string> {
     const accessToken = await this.config.getAccessToken()
+    const filename = `upload.${opts.dataType.replace('.gz', '')}`
+    const multipart = buildMultipartBody([
+      { name: 'data_type', value: opts.dataType },
+      ...(opts.name ? [{ name: 'name', value: opts.name }] : []),
+      ...(opts.description ? [{ name: 'description', value: opts.description }] : []),
+      ...(opts.externalId ? [{ name: 'external_id', value: opts.externalId }] : []),
+      ...(opts.trainer ? [{ name: 'trainer', value: '1' }] : []),
+      ...(opts.commute ? [{ name: 'commute', value: '1' }] : []),
+      {
+        name: 'file',
+        filename,
+        contentType: 'application/octet-stream',
+        bytes: file,
+      },
+    ])
     const res = await this.requestWithRetry('Strava upload start', () => {
-      const form = new FormData()
-      form.append('data_type', opts.dataType)
-      if (opts.name) form.append('name', opts.name)
-      if (opts.description) form.append('description', opts.description)
-      if (opts.externalId) form.append('external_id', opts.externalId)
-      if (opts.trainer) form.append('trainer', '1')
-      if (opts.commute) form.append('commute', '1')
-      const filename = `upload.${opts.dataType.replace('.gz', '')}`
-      form.append('file', new Blob([new Uint8Array(file)]), filename)
-
       return request(`${API_BASE}/uploads`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${accessToken}` },
-        body: form,
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': multipart.contentType,
+          'content-length': String(multipart.body.length),
+        },
+        body: multipart.body,
       })
     })
 
@@ -207,12 +217,25 @@ export function makeTokenGetter(mgr: TokenManager): () => Promise<string> {
 
 function throwForUploadError(status: UploadStatusResponse): never {
   const msg = status.error ?? 'Unknown upload error'
-  // Strava format: "<external_id> duplicate of activity <id>"
-  const dup = /duplicate of activity (\d+)/i.exec(msg)
-  if (dup) {
-    throw new DuplicateActivityError(msg, Number(dup[1]))
+  if (isDuplicateUploadError(msg)) {
+    const duplicateActivityId = parseDuplicateActivityId(msg)
+    throw new DuplicateActivityError(msg, duplicateActivityId)
   }
   throw new StravaApiError(`Upload failed: ${msg}`, 422, status)
+}
+
+function isDuplicateUploadError(message: string): boolean {
+  return /duplicate/i.test(message)
+}
+
+function parseDuplicateActivityId(message: string): number | undefined {
+  // Strava has returned both plain text and HTML anchor variants here:
+  // "duplicate of activity 123" and "duplicate of <a href='/activities/123'>..."
+  const anchorMatch = /href=['"]\/activities\/(\d+)/i.exec(message)
+  if (anchorMatch) return Number(anchorMatch[1])
+  const textMatch = /duplicate of activity (\d+)/i.exec(message)
+  if (textMatch) return Number(textMatch[1])
+  return undefined
 }
 
 function handleRateLimit(
@@ -249,4 +272,52 @@ function formatTransportError(err: unknown): string {
     return `${err.name}${code}: ${err.message}`
   }
   return String(err)
+}
+
+interface MultipartTextPart {
+  name: string
+  value: string
+}
+
+interface MultipartFilePart {
+  name: string
+  filename: string
+  contentType: string
+  bytes: Buffer
+}
+
+type MultipartPart = MultipartTextPart | MultipartFilePart
+
+function buildMultipartBody(parts: MultipartPart[]): { body: Buffer; contentType: string } {
+  const boundary = `sweatrelay-${randomUUID()}`
+  const chunks: Buffer[] = []
+  for (const part of parts) {
+    chunks.push(Buffer.from(`--${boundary}\r\n${contentDisposition(part)}`))
+    if ('bytes' in part) {
+      chunks.push(Buffer.from(`Content-Type: ${part.contentType}\r\n\r\n`))
+      chunks.push(part.bytes)
+      chunks.push(Buffer.from('\r\n'))
+    } else {
+      chunks.push(Buffer.from(`\r\n${part.value}\r\n`))
+    }
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`))
+  return {
+    body: Buffer.concat(chunks),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  }
+}
+
+function contentDisposition(part: MultipartPart): string {
+  const base = `Content-Disposition: form-data; name="${escapeMultipartValue(part.name)}"`
+  if (!('bytes' in part)) return `${base}\r\n`
+  return `${base}; filename="${escapeMultipartValue(part.filename)}"\r\n`
+}
+
+function escapeMultipartValue(value: string): string {
+  return value
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\r', '')
+    .replaceAll('\n', '')
 }

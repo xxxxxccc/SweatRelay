@@ -346,7 +346,7 @@ function pickNextStep({
       index: '02',
       badge: '下一步 · 02 / 02',
       title: '选一条数据来源',
-      desc: '连接 Onelap 账号自动同步今日骑行，或选一个文件夹监控任何码表导出的 FIT 文件。两者可以并存。',
+      desc: '连接 Onelap 账号同步最近 7 天骑行，或选一个文件夹监控任何码表导出的 FIT 文件。两者可以并存。',
       cta: '配置数据源',
       to: '/sources',
       icon: Mountain,

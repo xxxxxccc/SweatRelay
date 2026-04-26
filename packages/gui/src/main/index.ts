@@ -20,6 +20,7 @@ import { configureAutoUpdates } from './updater.ts'
 
 let mainWindow: BrowserWindow | null = null
 const services = new Services(appPaths())
+let onelapSyncInFlight = false
 
 function ok<T>(value: T): IpcResult<T> {
   return { ok: true, value }
@@ -192,14 +193,27 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.syncOnelap, async () => {
+    if (onelapSyncInFlight) {
+      logApp('sync:onelap ignored reason=already-in-flight')
+      return {
+        ok: false,
+        error: { name: 'SyncInProgressError', message: '正在同步，请等待当前同步完成' },
+      }
+    }
+
+    const startedAt = Date.now()
+    onelapSyncInFlight = true
     try {
       logApp('sync:onelap start')
       const outcomes = await services.runOnelapSyncOnce()
-      logSyncOutcomes('sync:onelap complete', outcomes)
+      logSyncOutcomes(`sync:onelap complete durationMs=${Date.now() - startedAt}`, outcomes)
       for (const o of outcomes) emit(o)
       return ok(outcomes)
     } catch (err) {
+      logApp(`sync:onelap failed durationMs=${Date.now() - startedAt}`)
       return fail(IPC_CHANNELS.syncOnelap, err)
+    } finally {
+      onelapSyncInFlight = false
     }
   })
 

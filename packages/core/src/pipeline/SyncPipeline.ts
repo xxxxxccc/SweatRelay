@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
-import type { SourceAdapter } from '../adapters/SourceAdapter.ts'
+import type { ListOptions, SourceAdapter } from '../adapters/SourceAdapter.ts'
 import type { SyncedStore, SyncRecord } from '../state/SyncedStore.ts'
 import type { TriggerEvent } from '../triggers/Trigger.ts'
 import type { StravaUploader } from '../uploader/StravaUploader.ts'
@@ -64,13 +64,19 @@ export class SyncPipeline {
   }
 
   /** Pull recent activities from the configured adapter and upload each. */
-  async handleAdapterPull(): Promise<SyncOutcome[]> {
+  async handleAdapterPull(
+    opts: ListOptions & { defaultSince?: Date | null } = {},
+  ): Promise<SyncOutcome[]> {
     const adapter = this.opts.adapter
     if (!adapter) {
       throw new SweatRelayError('SyncPipeline.handleAdapterPull called without an adapter')
     }
     const outcomes: SyncOutcome[] = []
-    for await (const ref of adapter.list({ since: startOfToday() })) {
+    const { defaultSince, ...listOptions } = opts
+    for await (const ref of adapter.list({
+      ...listOptions,
+      since: opts.since ?? (defaultSince === null ? undefined : (defaultSince ?? startOfToday())),
+    })) {
       const key = ref.sourceId
       const existing = await this.opts.store.get(key)
       if (existing) {

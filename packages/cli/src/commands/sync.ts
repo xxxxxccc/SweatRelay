@@ -28,7 +28,7 @@ async function runWithAdapter(adapter: SourceAdapter): Promise<void> {
   reportOutcomes(outcomes)
 }
 
-export async function syncOnelap(_opts: SyncOptions = {}): Promise<void> {
+export async function syncOnelap(opts: SyncOptions = {}): Promise<void> {
   const paths = buildPaths()
   const credentials = await buildCredentialStore(paths)
   const { uploader } = await buildUploader(paths, credentials)
@@ -37,7 +37,8 @@ export async function syncOnelap(_opts: SyncOptions = {}): Promise<void> {
     store: paths.store,
     adapter: new OnelapApiAdapter({ credentials }),
   })
-  const outcomes = await pipeline.handleAdapterPull()
+  const since = parseSince(opts.since ?? 'today')
+  const outcomes = await pipeline.handleAdapterPull(since ? { since } : { defaultSince: null })
   reportOutcomes(outcomes)
 }
 
@@ -51,4 +52,31 @@ export async function syncBlackbird(opts: FolderSyncOptions): Promise<void> {
 
 export async function syncFolder(opts: FolderSyncOptions): Promise<void> {
   await runWithAdapter(new FolderAdapter({ dir: resolve(opts.dir) }))
+}
+
+function parseSince(value: string): Date | undefined {
+  if (value === 'all') return undefined
+  if (value === 'today') return startOfLocalDay(new Date())
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) {
+    throw new Error(`Invalid --since value: ${value}. Use today, all, or YYYY-MM-DD.`)
+  }
+
+  const [, year, month, day] = match
+  const since = new Date(Number(year), Number(month) - 1, Number(day))
+  if (
+    since.getFullYear() !== Number(year) ||
+    since.getMonth() !== Number(month) - 1 ||
+    since.getDate() !== Number(day)
+  ) {
+    throw new Error(`Invalid --since date: ${value}. Use today, all, or YYYY-MM-DD.`)
+  }
+  return since
+}
+
+function startOfLocalDay(date: Date): Date {
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  return start
 }

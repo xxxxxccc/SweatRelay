@@ -6,7 +6,7 @@
 
 ## 它能做什么
 
-- **Onelap → Strava**：用账号密码自动拉取今日骑行
+- **Onelap → Strava**：用账号密码自动拉取近期骑行
 - **任意码表 → Strava**：监控一个文件夹，新增的 FIT/GPX/TCX 自动上传
 - **定时拉取**：GUI 里挑频率（每 15 分钟 / 每小时…）；CLI 支持 cron 表达式
 - **同步控制台**：GUI 和 CLI 共享同一套本地配置、凭证和同步历史
@@ -82,8 +82,10 @@ sweatrelay auth onelap        # 输入 Onelap 账号密码
 
 # 三种用法
 
-# 1) 一次性同步今日 Onelap
+# 1) 一次性同步 Onelap
 sweatrelay sync onelap --since today
+sweatrelay sync onelap --since 2026-04-01
+sweatrelay sync onelap --since all
 
 # 2) 文件夹监听（任意码表导出目录）
 sweatrelay watch ~/Downloads/rides

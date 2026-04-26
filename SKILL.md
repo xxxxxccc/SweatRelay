@@ -66,7 +66,7 @@ One-shot upload of a single `.fit` / `.gpx` / `.tcx` file to Strava. Idempotent:
 Long-running. Watches `<dir>` for new FIT/GPX/TCX files; uploads each as it lands. `Ctrl-C` to stop. Use for "drop your code-meter exports here" workflows. With `--process-existing`, also uploads files already present at startup.
 
 ### `sweatrelay sync onelap [--since <when>]`
-Pulls today's activities from Onelap and uploads any not yet synced. `--since today` (default) or `--since YYYY-MM-DD`.
+Pulls Onelap activities and uploads any not yet synced. `--since today` (default), `--since YYYY-MM-DD`, or `--since all`.
 
 ### `sweatrelay schedule "<cron>" sync onelap [--tz Asia/Shanghai]`
 Long-running daemon. Standard 5-field cron. Example: `"*/30 * * * *"` = every 30 min.
