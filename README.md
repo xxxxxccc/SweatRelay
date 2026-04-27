@@ -1,6 +1,6 @@
 # SweatRelay
 
-把国内不支持 Strava 同步的骑行平台数据，自动同步到 Strava。
+把骑行活动、训练计划和训练负荷放在一个本地控制台里处理：同步国内平台数据到 Strava，在本地编排未来训练，并把计划写回 Intervals.icu。
 
 [![CI](https://github.com/xxxxxccc/SweatRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/xxxxxccc/SweatRelay/actions/workflows/ci.yml)
 
@@ -9,7 +9,9 @@
 - **Onelap → Strava**：用账号密码自动拉取近期骑行
 - **任意码表 → Strava**：监控一个文件夹，新增的 FIT/GPX/TCX 自动上传
 - **定时拉取**：GUI 里挑频率（每 15 分钟 / 每小时…）；CLI 支持 cron 表达式
-- **同步控制台**：GUI 和 CLI 共享同一套本地配置、凭证和同步历史
+- **训练计划编排**：在 GUI 里按周安排训练课，支持 FTP% / 最大心率% 强度、重复步骤、复制/粘贴课程和每周负荷统计
+- **Intervals.icu 集成**：读取 CTL / ATL / TSB / Ramp，按本地规则判断训练强度，并把 planned workouts 同步到 Intervals.icu calendar
+- **同步控制台**：GUI 和 CLI 共享同一套本地配置、凭证、同步历史和本地训练计划
 - **重复检测**：本地 hash + Strava 服务端 `external_id` 双保险，重复上传不会真重复
 - **加密存储**：所有连接信息用 AES-256-GCM + scrypt 加密在本地（支持 OS 钥匙串）
 
@@ -52,7 +54,7 @@ xattr -dr com.apple.quarantine /Applications/SweatRelay.app
 如果是下载文件本身被标记，也可以在 PowerShell 里解除阻止：
 
 ```powershell
-Unblock-File "$env:USERPROFILE\\Downloads\\SweatRelay Setup 0.0.3.exe"
+Unblock-File "$env:USERPROFILE\\Downloads\\SweatRelay Setup <version>.exe"
 ```
 
 如果你把安装器放在别的目录，改成对应路径即可。
@@ -107,21 +109,30 @@ sweatrelay doctor
 
 ### 3. GUI 用法
 
-启动后跟着引导走：填本地加密密码 + Strava 凭证 → 授权 Strava → 配置 Onelap 账号或选 watch 目录 → 看 Dashboard。
+启动后跟着引导走：填本地加密密码 + Strava 凭证 → 授权 Strava → 配置 Onelap 账号或选 watch 目录 → 连接 Intervals.icu（可选）→ 看 Dashboard。
 
-GUI 现在按“同步控制台”来设计：
+GUI 现在按“训练同步控制台”来设计：
 
-- `Strava` 是唯一原生上传目标端
-- `Intervals.icu` 可作为只读训练负荷来源，在应用内展示 `CTL / ATL / TSB`
+- `Strava` 是活动文件的唯一原生上传目标端
+- `Intervals.icu` 用来读取训练负荷，并接收 SweatRelay 本地编排的未来训练计划
 - `文件夹监控` 和 `定时同步` 都属于后台自动同步
-- 如果这两项都没启用，右上角的 `立即同步` 就是当前唯一同步方式
+- `训练计划` 页可以按周编排未来课程，实时估算时长、TSS、IF、周负荷和未来最低 TSB
+- `训练负荷` 页显示 CTL（体能）、ATL（疲劳）、TSB（状态）、Ramp（增长率），并结合本地计划判断当前训练强度是否偏高
+- 如果文件夹监控和定时同步都没启用，右上角的 `立即同步` 就是当前唯一活动同步方式
 
 如果你也使用 `Intervals.icu`，推荐路径是：
 
 1. 用 SweatRelay 把活动同步到 `Strava`
 2. 在 `Intervals.icu` 那边连接 `Strava`
 3. 让 `Intervals.icu` 经由 `Strava` 获取活动
-4. 在 SweatRelay 的 `数据源` 页保存 Intervals.icu API key 后，进入 `训练负荷` 页查看 CTL / ATL / TSB
+4. 在 SweatRelay 的 `数据源` 页保存 Intervals.icu API key
+5. 在 SweatRelay 的 `训练计划` 页编排未来训练，点击 `同步 ICU` 写入 Intervals.icu calendar
+6. 在 `训练负荷` 页查看 CTL / ATL / TSB 和未来计划风险
+
+强度判断分两层：
+
+- `CTL / ATL / TSB / Ramp` 原始值来自 Intervals.icu
+- “强度偏高 / 合适 / 需要恢复”等结论由 SweatRelay 本地规则计算，目的是让你不必跳转到 Intervals.icu 才能判断计划是否过量
 
 支持 dark / light 主题切换。
 
@@ -152,6 +163,8 @@ packages/
 - `SourceAdapter` — 从源平台拉取活动
 - `Activity` — 标准化数据模型（FIT 忠实）
 - `StravaUploader` — 上传 + 异步轮询 + 限流退避 + 重复检测
+- `IntervalsClient` — 读取 Intervals.icu wellness / calendar 数据，并批量写入 planned workouts
+- `TrainingPlanStore` — 本地 SQLite 训练计划、训练课和步骤结构
 - `Trigger` — 三种实现：`ManualTrigger` / `ScheduledTrigger`(cron) / `FileWatcherTrigger`(chokidar)
 - `CredentialStore` — `EncryptedFileCredentialStore`(AES-GCM + scrypt) / `MemoryCredentialStore`(测试)
 - `SyncPipeline` — 编排 trigger → adapter → upload → record
@@ -216,6 +229,7 @@ pnpm --filter @sweatrelay/gui run package
 ## 法律与风险
 
 - **Strava OAuth** 走官方流程；上传遵守官方限流
+- **Intervals.icu** 使用 API key 访问你的训练负荷和 calendar。SweatRelay 会用本地计划的稳定标识更新已同步课程，避免重复创建
 - **Onelap API 路径** 基于社区已知的私有接口；接口随版本可能变化。仅供个人/教育用途。如不接受此风险，请使用文件夹路径
 - **文件夹路径** 完全合规：你自己导出 FIT，工具只做转储
 - 凭证全部本地加密存储，不上传任何第三方

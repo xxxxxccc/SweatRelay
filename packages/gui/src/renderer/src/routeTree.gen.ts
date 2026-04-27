@@ -15,6 +15,7 @@ import { Route as TrainingRouteImport } from './routes/training'
 import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PlansRouteImport } from './routes/plans'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -48,6 +49,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -62,6 +68,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/plans': typeof PlansRoute
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
@@ -95,6 +104,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/history'
+    | '/plans'
     | '/settings'
     | '/setup'
     | '/sources'
@@ -105,6 +115,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/history'
+    | '/plans'
     | '/settings'
     | '/setup'
     | '/sources'
@@ -115,6 +126,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/history'
+    | '/plans'
     | '/settings'
     | '/setup'
     | '/sources'
@@ -126,6 +138,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRoute
+  PlansRoute: typeof PlansRoute
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
   SourcesRoute: typeof SourcesRoute
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history': {
       id: '/history'
       path: '/history'
@@ -198,6 +218,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
+  PlansRoute: PlansRoute,
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
   SourcesRoute: SourcesRoute,
