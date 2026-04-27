@@ -1,4 +1,12 @@
-import type { IntervalsTrainingLoadReport, SyncOutcome, SyncRecord } from '@sweatrelay/core'
+import type {
+  IntervalsTrainingLoadReport,
+  SyncOutcome,
+  SyncRecord,
+  TrainingPlanOverview,
+  TrainingPlanSyncResult,
+  UpdateTrainingPlanInput,
+  UpsertPlannedWorkoutInput,
+} from '@sweatrelay/core'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type AutoSyncMode = 'none' | 'watch' | 'schedule' | 'both'
@@ -66,6 +74,27 @@ export interface SetTrainingStatusPayload {
   range?: TrainingStatusRange
 }
 
+export interface TrainingPlanPayload {
+  planId?: string
+}
+
+export type UpdateTrainingPlanPayload = UpdateTrainingPlanInput
+export type UpsertPlannedWorkoutPayload = UpsertPlannedWorkoutInput
+
+export interface DeletePlannedWorkoutPayload {
+  planId: string
+  workoutId: string
+}
+
+export interface SyncTrainingPlanPayload {
+  planId: string
+}
+
+export interface SyncTrainingPlanResult {
+  overview: TrainingPlanOverview
+  result: TrainingPlanSyncResult
+}
+
 export interface SetWatchDirPayload {
   /** Directory path; pass null to clear. */
   dir: string | null
@@ -97,6 +126,15 @@ export interface SweatRelayApi {
   authIntervals(payload: IntervalsAuthPayload): Promise<IpcResult<AppStatus>>
   trainingLoad(payload?: TrainingLoadPayload): Promise<IpcResult<IntervalsTrainingLoadReport>>
   setTrainingStatus(payload: SetTrainingStatusPayload): Promise<IpcResult<AppStatus>>
+  trainingPlan(payload?: TrainingPlanPayload): Promise<IpcResult<TrainingPlanOverview>>
+  updateTrainingPlan(payload: UpdateTrainingPlanPayload): Promise<IpcResult<TrainingPlanOverview>>
+  upsertPlannedWorkout(
+    payload: UpsertPlannedWorkoutPayload,
+  ): Promise<IpcResult<TrainingPlanOverview>>
+  deletePlannedWorkout(
+    payload: DeletePlannedWorkoutPayload,
+  ): Promise<IpcResult<TrainingPlanOverview>>
+  syncTrainingPlan(payload: SyncTrainingPlanPayload): Promise<IpcResult<SyncTrainingPlanResult>>
   setWatchDir(payload: SetWatchDirPayload): Promise<IpcResult<AppStatus>>
   setSchedule(payload: SetSchedulePayload): Promise<IpcResult<AppStatus>>
   setTheme(payload: SetThemePayload): Promise<IpcResult<AppStatus>>
@@ -115,6 +153,11 @@ export const IPC_CHANNELS = {
   authIntervals: 'sweatrelay:authIntervals',
   trainingLoad: 'sweatrelay:trainingLoad',
   setTrainingStatus: 'sweatrelay:setTrainingStatus',
+  trainingPlan: 'sweatrelay:trainingPlan',
+  updateTrainingPlan: 'sweatrelay:updateTrainingPlan',
+  upsertPlannedWorkout: 'sweatrelay:upsertPlannedWorkout',
+  deletePlannedWorkout: 'sweatrelay:deletePlannedWorkout',
+  syncTrainingPlan: 'sweatrelay:syncTrainingPlan',
   setWatchDir: 'sweatrelay:setWatchDir',
   setSchedule: 'sweatrelay:setSchedule',
   setTheme: 'sweatrelay:setTheme',

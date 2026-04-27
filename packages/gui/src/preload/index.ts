@@ -2,6 +2,7 @@ import type { SyncOutcome } from '@sweatrelay/core'
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   type ConfigurePayload,
+  type DeletePlannedWorkoutPayload,
   type IntervalsAuthPayload,
   IPC_CHANNELS,
   type IpcResult,
@@ -11,8 +12,12 @@ import {
   type SetTrainingStatusPayload,
   type SetWatchDirPayload,
   type SweatRelayApi,
+  type SyncTrainingPlanPayload,
   type TrainingLoadPayload,
+  type TrainingPlanPayload,
   type UnlockPayload,
+  type UpdateTrainingPlanPayload,
+  type UpsertPlannedWorkoutPayload,
 } from '../shared/ipc.ts'
 
 const api: SweatRelayApi = {
@@ -31,6 +36,16 @@ const api: SweatRelayApi = {
     ipcRenderer.invoke(IPC_CHANNELS.trainingLoad, payload) as Promise<IpcResult<never>>,
   setTrainingStatus: (payload: SetTrainingStatusPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.setTrainingStatus, payload) as Promise<IpcResult<never>>,
+  trainingPlan: (payload?: TrainingPlanPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.trainingPlan, payload) as Promise<IpcResult<never>>,
+  updateTrainingPlan: (payload: UpdateTrainingPlanPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateTrainingPlan, payload) as Promise<IpcResult<never>>,
+  upsertPlannedWorkout: (payload: UpsertPlannedWorkoutPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.upsertPlannedWorkout, payload) as Promise<IpcResult<never>>,
+  deletePlannedWorkout: (payload: DeletePlannedWorkoutPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deletePlannedWorkout, payload) as Promise<IpcResult<never>>,
+  syncTrainingPlan: (payload: SyncTrainingPlanPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncTrainingPlan, payload) as Promise<IpcResult<never>>,
   setWatchDir: (payload: SetWatchDirPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWatchDir, payload) as Promise<IpcResult<never>>,
   setSchedule: (payload: SetSchedulePayload) =>

@@ -134,6 +134,7 @@ describe('CLI credential recovery', () => {
       settingsPath,
       credsPath,
       syncedPath,
+      trainingPlansPath: join(dir, 'training-plans.sqlite'),
     })
     await services.restorePersistedConfiguration()
 

@@ -15,6 +15,7 @@ export interface AppPaths {
   settingsPath: string
   credsPath: string
   syncedPath: string
+  trainingPlansPath: string
 }
 
 export function appPaths(): AppPaths {
@@ -26,6 +27,7 @@ export function appPaths(): AppPaths {
     settingsPath: join(configDir, 'settings.json'),
     credsPath: join(configDir, 'creds.enc'),
     syncedPath: join(configDir, 'synced.sqlite'),
+    trainingPlansPath: join(configDir, 'training-plans.sqlite'),
   }
 }
 

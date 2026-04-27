@@ -1,5 +1,7 @@
 export {
   assessTrainingLoad,
+  type IntervalsCalendarEventResult,
+  type IntervalsCalendarEventUpsert,
   IntervalsClient,
   type IntervalsClientOptions,
   type IntervalsFetchFitnessOptions,

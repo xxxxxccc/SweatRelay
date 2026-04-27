@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises'
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import {
+  buildIntervalsWorkoutEvent,
   type CredentialStore,
   EncryptedFileCredentialStore,
   FileWatcherTrigger,
@@ -22,6 +23,12 @@ import {
   SyncedStore,
   type SyncOutcome,
   SyncPipeline,
+  type TrainingPlanOverview,
+  TrainingPlanStore,
+  type TrainingPlanSyncResult,
+  type TrainingProjectionSeed,
+  type UpdateTrainingPlanInput,
+  type UpsertPlannedWorkoutInput,
 } from '@sweatrelay/core'
 import {
   type AppPaths,
@@ -72,6 +79,7 @@ export class Services {
   readonly paths: AppPaths
   private credentials: CredentialStore | null = null
   private store: SyncedStore
+  private plans: TrainingPlanStore
   private oauth: StravaOAuth | null = null
   private uploader: StravaUploader | null = null
   private fileWatcher: FileWatcherTrigger | null = null
@@ -94,6 +102,9 @@ export class Services {
     this.store = new SyncedStore({
       path: paths.syncedPath,
       legacyJsonPath: paths.syncedPath.replace(/\.sqlite$/, '.json'),
+    })
+    this.plans = new TrainingPlanStore({
+      path: paths.trainingPlansPath,
     })
   }
 
@@ -213,6 +224,45 @@ export class Services {
     const apiKey = await this.credentials.get(INTERVALS_API_KEY)
     if (!apiKey) throw new Error('Intervals.icu API key not stored')
     return new IntervalsClient({ apiKey }).fetchTrainingLoadReport({ days, forecastDays })
+  }
+
+  async getTrainingPlanOverview(planId?: string): Promise<TrainingPlanOverview> {
+    return this.plans.getOverview(planId, await this.getTrainingProjectionSeed())
+  }
+
+  async updateTrainingPlan(input: UpdateTrainingPlanInput): Promise<TrainingPlanOverview> {
+    const plan = await this.plans.updatePlan(input)
+    return this.getTrainingPlanOverview(plan.id)
+  }
+
+  async upsertPlannedWorkout(input: UpsertPlannedWorkoutInput): Promise<TrainingPlanOverview> {
+    const workout = await this.plans.upsertWorkout(input)
+    return this.getTrainingPlanOverview(workout.planId)
+  }
+
+  async deletePlannedWorkout(planId: string, workoutId: string): Promise<TrainingPlanOverview> {
+    await this.plans.deleteWorkout(workoutId)
+    return this.getTrainingPlanOverview(planId)
+  }
+
+  async syncTrainingPlanToIntervals(planId: string): Promise<{
+    overview: TrainingPlanOverview
+    result: TrainingPlanSyncResult
+  }> {
+    if (!this.credentials) throw new Error('Configure first')
+    const apiKey = await this.credentials.get(INTERVALS_API_KEY)
+    if (!apiKey) throw new Error('Intervals.icu API key not stored')
+
+    const overview = await this.plans.getOverview(planId, await this.getTrainingProjectionSeed())
+    const events = overview.workouts.map((workout) => buildIntervalsWorkoutEvent(workout))
+    if (events.length === 0) throw new Error('计划里还没有可同步的训练')
+
+    const synced = await new IntervalsClient({ apiKey }).upsertCalendarEvents(events)
+    const result = await this.plans.markSynced(planId, synced)
+    return {
+      overview: await this.getTrainingPlanOverview(planId),
+      result,
+    }
   }
 
   async setWatchDir(dir: string | null): Promise<void> {
@@ -344,8 +394,21 @@ export class Services {
   async dispose(): Promise<void> {
     await this.fileWatcher?.stop()
     await this.scheduledTrigger?.stop()
+    await this.plans.close()
     this.listeners.clear()
     this.errorListeners.clear()
+  }
+
+  private async getTrainingProjectionSeed(): Promise<TrainingProjectionSeed | undefined> {
+    if (!this.credentials) return undefined
+    const apiKey = await this.credentials.get(INTERVALS_API_KEY)
+    if (!apiKey) return undefined
+    try {
+      const latest = (await new IntervalsClient({ apiKey }).fetchFitness(14)).latest
+      return latest ? { date: latest.date, ctl: latest.ctl, atl: latest.atl } : undefined
+    } catch {
+      return undefined
+    }
   }
 
   private async restoreCredentialStore(passphrase?: string): Promise<CredentialStore | null> {

@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import {
   Activity as ActivityIcon,
   Cable,
+  CalendarDays,
   Gauge,
   History as HistoryIcon,
   Settings as SettingsIcon,
@@ -22,6 +23,7 @@ const NAV: ReadonlyArray<{
 }> = [
   { to: '/', label: '概览', icon: ActivityIcon },
   { to: '/sources', label: '数据源', icon: Cable },
+  { to: '/plans', label: '训练计划', icon: CalendarDays },
   { to: '/training', label: '训练负荷', icon: Gauge },
   { to: '/triggers', label: '自动同步', icon: Timer },
   { to: '/history', label: '历史', icon: HistoryIcon },

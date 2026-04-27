@@ -114,6 +114,45 @@ describe('IntervalsClient', () => {
     )
   })
 
+  it('upserts planned workouts to the Intervals.icu calendar', async () => {
+    const pool = agent.get(INTERVALS_ORIGIN)
+    pool
+      .intercept({
+        path: '/api/v1/athlete/0/events/bulk?upsert=true',
+        method: 'POST',
+      })
+      .reply(200, (opts) => {
+        const headers = opts.headers as Record<string, string>
+        expect(headers.authorization).toBe('Basic QVBJX0tFWTp0ZXN0LWtleQ==')
+        expect(headers['content-type']).toBe('application/json')
+        expect(JSON.parse(opts.body as string)).toEqual([
+          expect.objectContaining({
+            category: 'WORKOUT',
+            external_id: 'sweatrelay:workout:1',
+            name: 'FTP 3x10',
+          }),
+        ])
+        return [{ id: 42, external_id: 'sweatrelay:workout:1' }]
+      })
+
+    const client = new IntervalsClient({ apiKey: 'test-key' })
+    await expect(
+      client.upsertCalendarEvents([
+        {
+          category: 'WORKOUT',
+          start_date_local: '2026-04-28T00:00:00',
+          type: 'Ride',
+          name: 'FTP 3x10',
+          description: '- 10m 90%',
+          moving_time: 1800,
+          target: 'POWER',
+          icu_training_load: 45,
+          external_id: 'sweatrelay:workout:1',
+        },
+      ]),
+    ).resolves.toEqual([{ id: 42, external_id: 'sweatrelay:workout:1' }])
+  })
+
   it('surfaces Intervals.icu API errors', async () => {
     const pool = agent.get(INTERVALS_ORIGIN)
     pool

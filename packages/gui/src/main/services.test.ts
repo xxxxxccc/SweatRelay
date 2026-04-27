@@ -42,6 +42,7 @@ describe('Services restore state', () => {
       settingsPath: join(dir, 'settings.json'),
       credsPath,
       syncedPath: join(dir, 'synced.sqlite'),
+      trainingPlansPath: join(dir, 'training-plans.sqlite'),
     })
 
     await services.restorePersistedConfiguration()
@@ -72,6 +73,7 @@ describe('Services restore state', () => {
       settingsPath: join(dir, 'settings.json'),
       credsPath,
       syncedPath: join(dir, 'synced.sqlite'),
+      trainingPlansPath: join(dir, 'training-plans.sqlite'),
     })
 
     await services.restorePersistedConfiguration('test-passphrase')

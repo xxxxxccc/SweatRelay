@@ -17,7 +17,7 @@ function Settings() {
 
   return (
     <div className="space-y-8">
-      <SectionHeading index="05" title="设置" subtitle="外观、本地存储、外部服务入口和运行诊断。" />
+      <SectionHeading index="06" title="设置" subtitle="外观、本地存储、外部服务入口和运行诊断。" />
 
       <Accordion
         type="multiple"

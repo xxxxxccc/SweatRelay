@@ -104,6 +104,27 @@ export interface IntervalsTrainingLoadReport {
   assessment: TrainingLoadAssessment
 }
 
+export interface IntervalsCalendarEventUpsert {
+  category: string
+  start_date_local: string
+  type?: string
+  name?: string
+  description?: string
+  moving_time?: number
+  target?: string
+  icu_training_load?: number
+  external_id?: string
+}
+
+export interface IntervalsCalendarEventResult {
+  id?: number
+  external_id?: string
+  start_date_local?: string
+  category?: string
+  name?: string
+  type?: string
+}
+
 interface WellnessRecord {
   id?: unknown
   ctl?: unknown
@@ -188,6 +209,18 @@ export class IntervalsClient {
     }
   }
 
+  async upsertCalendarEvents(
+    events: readonly IntervalsCalendarEventUpsert[],
+  ): Promise<IntervalsCalendarEventResult[]> {
+    const url = new URL('/api/v1/athlete/0/events/bulk', this.origin)
+    url.searchParams.set('upsert', 'true')
+    const records = await this.postJson<IntervalsCalendarEventResult[]>(url, events)
+    if (!Array.isArray(records)) {
+      throw new SweatRelayError('Intervals.icu calendar upsert response was not an array')
+    }
+    return records
+  }
+
   private async fetchForecast(days: number): Promise<IntervalsForecastSummary> {
     const startDate = localDate(new Date())
     const end = new Date()
@@ -235,11 +268,29 @@ export class IntervalsClient {
   }
 
   private async getJson<T>(url: URL): Promise<T> {
+    return this.requestJson<T>(url, { method: 'GET' })
+  }
+
+  private async postJson<T>(url: URL, body: unknown): Promise<T> {
+    return this.requestJson<T>(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      contentType: 'application/json',
+    })
+  }
+
+  private async requestJson<T>(
+    url: URL,
+    options: { method: 'GET' | 'POST'; body?: string; contentType?: string },
+  ): Promise<T> {
     const res = await fetch(url, {
+      method: options.method,
       headers: {
         accept: 'application/json',
         authorization: basicAuth(this.apiKey),
+        ...(options.contentType ? { 'content-type': options.contentType } : {}),
       },
+      ...(options.body !== undefined ? { body: options.body } : {}),
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')

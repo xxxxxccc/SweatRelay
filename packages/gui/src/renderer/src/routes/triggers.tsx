@@ -17,7 +17,7 @@ function Triggers() {
   return (
     <div className="space-y-10">
       <SectionHeading
-        index="03"
+        index="04"
         title="自动同步"
         subtitle="把手动同步升级成后台执行。文件夹监控负责新文件，定时同步负责按计划拉取 Onelap。"
       />

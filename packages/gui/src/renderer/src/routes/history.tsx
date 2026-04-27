@@ -44,7 +44,7 @@ function History() {
   return (
     <div className="space-y-8">
       <SectionHeading
-        index="04"
+        index="05"
         title="历史"
         subtitle="所有同步记录 · 最多展示 50 条"
         action={

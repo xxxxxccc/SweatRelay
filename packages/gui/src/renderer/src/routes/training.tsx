@@ -3,6 +3,7 @@ import type {
   IntervalsFitnessPoint,
   IntervalsTrainingLoadReport,
   TrainingLoadAssessment,
+  TrainingPlanOverview,
   TrainingStatusReason,
 } from '@sweatrelay/core'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -19,10 +20,16 @@ import { cn } from '@/lib/utils'
 import { refreshStatusAtom, statusAtom } from '@/state/atoms'
 
 const HISTORY_DAYS = 42
+const ICU_SERIES_COLORS = {
+  ctl: 'oklch(59% 0.15 300)',
+  atl: 'oklch(70% 0.14 225)',
+  tsb: 'oklch(62% 0.17 145)',
+  ramp: 'var(--color-fg-muted)',
+} as const
 
 const RANGE_OPTIONS: ReadonlyArray<{ value: TrainingStatusRange; label: string; desc: string }> = [
-  { value: 'current', label: '当前', desc: '只看最新 CTL / ATL / TSB' },
-  { value: 'future7', label: '未来 7 天', desc: '包含 ICU 计划预测' },
+  { value: 'current', label: '当前', desc: '最新 CTL / ATL / TSB' },
+  { value: 'future7', label: '未来 7 天', desc: '包含 ICU / 本地计划' },
   { value: 'future14', label: '未来 14 天', desc: '检查更长周期计划' },
 ]
 
@@ -30,6 +37,7 @@ function TrainingLoad() {
   const status = useAtomValue(statusAtom)
   const refreshStatus = useSetAtom(refreshStatusAtom)
   const [report, setReport] = useState<IntervalsTrainingLoadReport | null>(null)
+  const [planOverview, setPlanOverview] = useState<TrainingPlanOverview | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const connected = status?.intervalsConnected ?? false
@@ -40,11 +48,15 @@ function TrainingLoad() {
     async (nextRange: TrainingStatusRange = range) => {
       setBusy(true)
       setErr(null)
-      const res = await api.trainingLoad({
-        days: HISTORY_DAYS,
-        forecastDays: forecastDaysForRange(nextRange),
-      })
+      const [res, planRes] = await Promise.all([
+        api.trainingLoad({
+          days: HISTORY_DAYS,
+          forecastDays: forecastDaysForRange(nextRange),
+        }),
+        api.trainingPlan(),
+      ])
       setBusy(false)
+      if (planRes.ok) setPlanOverview(planRes.value)
       if (!res.ok) {
         setErr(res.error.message)
         return
@@ -86,7 +98,7 @@ function TrainingLoad() {
   return (
     <div className="space-y-8">
       <SectionHeading
-        index="02"
+        index="03"
         title="训练负荷"
         subtitle="ICU 提供 CTL / ATL / Ramp 等原始数据；SweatRelay 用本地规则做状态检测。"
         action={
@@ -120,7 +132,11 @@ function TrainingLoad() {
       ) : null}
 
       {connected && report?.summary.latest ? (
-        <TrainingDashboard report={report} detectionEnabled={detectionEnabled} />
+        <TrainingDashboard
+          report={report}
+          planOverview={planOverview}
+          detectionEnabled={detectionEnabled}
+        />
       ) : null}
 
       {connected && report && !report.summary.latest ? (
@@ -251,9 +267,11 @@ function ConnectIntervals() {
 
 function TrainingDashboard({
   report,
+  planOverview,
   detectionEnabled,
 }: {
   report: IntervalsTrainingLoadReport
+  planOverview: TrainingPlanOverview | null
   detectionEnabled: boolean
 }) {
   const { summary, assessment } = report
@@ -268,31 +286,34 @@ function TrainingDashboard({
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="CTL"
-          title="Fitness"
+          title="体能"
           value={latest.ctl}
           delta={previous ? latest.ctl - previous.ctl : undefined}
           sub="ICU 原始值"
+          markerColor={ICU_SERIES_COLORS.ctl}
         />
         <MetricCard
           label="ATL"
-          title="Fatigue"
+          title="疲劳"
           value={latest.atl}
           delta={previous ? latest.atl - previous.atl : undefined}
           sub="ICU 原始值"
+          markerColor={ICU_SERIES_COLORS.atl}
         />
         <MetricCard
           label="TSB"
-          title="Form"
+          title="状态"
           value={latest.tsb}
           delta={previous ? latest.tsb - previous.tsb : undefined}
           sub="CTL - ATL"
-          tone={toneForAssessment(assessment.level)}
+          markerColor={ICU_SERIES_COLORS.tsb}
         />
         <MetricCard
           label="Ramp"
-          title="Ramp Rate"
+          title="增长率"
           value={latest.rampRate}
           sub="ICU 原始值"
+          markerColor={ICU_SERIES_COLORS.ramp}
           muted={latest.rampRate === undefined}
         />
       </section>
@@ -308,21 +329,25 @@ function TrainingDashboard({
             </h2>
           </div>
           <div className="flex items-center gap-4 text-xs text-fg-muted">
-            <Legend color="var(--color-fg)" label="CTL" />
-            <Legend color="var(--color-accent)" label="ATL" />
-            <Legend color="var(--color-warning)" label="TSB" />
+            <Legend color={ICU_SERIES_COLORS.ctl} label="CTL" />
+            <Legend color={ICU_SERIES_COLORS.atl} label="ATL" />
+            <Legend color={ICU_SERIES_COLORS.tsb} label="TSB" />
           </div>
         </div>
         <TrainingChart
           points={summary.points}
-          forecastPoints={summary.forecast?.points ?? []}
+          forecastPoints={forecastPointsForDisplay(
+            summary.latest,
+            summary.forecast?.points,
+            planOverview,
+          )}
           showBands={detectionEnabled}
         />
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
         <RecentLoadTable points={summary.points.slice(-10).toReversed()} />
-        <LoadSummary report={report} />
+        <LoadSummary report={report} planOverview={planOverview} />
       </section>
     </div>
   )
@@ -411,7 +436,7 @@ function MetricCard({
   value,
   delta,
   sub,
-  tone = 'idle',
+  markerColor,
   muted,
 }: {
   label: string
@@ -419,7 +444,7 @@ function MetricCard({
   value?: number
   delta?: number
   sub: string
-  tone?: 'success' | 'warning' | 'danger' | 'idle'
+  markerColor: string
   muted?: boolean
 }) {
   const hasValue = value !== undefined && Number.isFinite(value)
@@ -427,7 +452,7 @@ function MetricCard({
     <div className="rounded-lg border border-border bg-surface px-5 py-4">
       <div className="flex items-center justify-between">
         <p className="font-mono text-micro uppercase tracking-stamp text-fg-muted">{label}</p>
-        <StatusDot tone={tone} />
+        <span className="size-2 rounded-full" style={{ backgroundColor: markerColor }} />
       </div>
       <div className="mt-5 flex items-end justify-between gap-3">
         <div>
@@ -516,14 +541,14 @@ function TrainingChart({
           strokeDasharray="4 6"
           strokeWidth="1"
         />
-        <path d={model.ctlPath} fill="none" stroke="var(--color-fg)" strokeWidth="2.4" />
-        <path d={model.atlPath} fill="none" stroke="var(--color-accent)" strokeWidth="2.4" />
-        <path d={model.tsbPath} fill="none" stroke="var(--color-warning)" strokeWidth="2" />
+        <path d={model.ctlPath} fill="none" stroke={ICU_SERIES_COLORS.ctl} strokeWidth="2.4" />
+        <path d={model.atlPath} fill="none" stroke={ICU_SERIES_COLORS.atl} strokeWidth="2.4" />
+        <path d={model.tsbPath} fill="none" stroke={ICU_SERIES_COLORS.tsb} strokeWidth="2" />
         {model.forecastTsbPath ? (
           <path
             d={model.forecastTsbPath}
             fill="none"
-            stroke="var(--color-warning)"
+            stroke={ICU_SERIES_COLORS.tsb}
             strokeDasharray="6 7"
             strokeWidth="2"
           />
@@ -532,7 +557,7 @@ function TrainingChart({
           <path
             d={model.forecastAtlPath}
             fill="none"
-            stroke="var(--color-accent)"
+            stroke={ICU_SERIES_COLORS.atl}
             strokeDasharray="6 7"
             strokeWidth="2"
           />
@@ -613,10 +638,16 @@ function RecentLoadTable({ points }: { points: IntervalsFitnessPoint[] }) {
   )
 }
 
-function LoadSummary({ report }: { report: IntervalsTrainingLoadReport }) {
+function LoadSummary({
+  report,
+  planOverview,
+}: {
+  report: IntervalsTrainingLoadReport
+  planOverview: TrainingPlanOverview | null
+}) {
   const latest = report.summary.latest
   if (!latest) return null
-  const forecast = report.summary.forecast
+  const forecast = futureSummaryForDisplay(report.summary.forecast, planOverview)
   return (
     <aside className="rounded-lg border border-border bg-surface px-5 py-4">
       <p className="font-mono text-micro uppercase tracking-stamp-wide text-accent">Snapshot</p>
@@ -627,7 +658,11 @@ function LoadSummary({ report }: { report: IntervalsTrainingLoadReport }) {
           value={report.assessment.title}
           tone={toneForAssessment(report.assessment.level)}
         />
-        <SummaryRow label="未来计划" value={forecast ? `${forecast.events.length} 项` : '未读取'} />
+        <SummaryRow
+          label="未来计划"
+          value={forecast ? `${forecast.workouts} 节 · ${forecast.source}` : '未编排'}
+          tone={forecast && forecast.workouts > 0 ? 'success' : 'idle'}
+        />
         <SummaryRow
           label="计划负荷"
           value={forecast ? formatMetric(forecast.totalPlannedLoad) : '—'}
@@ -666,6 +701,48 @@ function Legend({ color, label }: { color: string; label: string }) {
       {label}
     </span>
   )
+}
+
+function forecastPointsForDisplay(
+  latest: IntervalsFitnessPoint | undefined,
+  intervalsPoints: IntervalsFitnessPoint[] | undefined,
+  planOverview: TrainingPlanOverview | null,
+): IntervalsFitnessPoint[] {
+  const localPoints = planOverview?.projection?.points
+  if (localPoints && localPoints.length > 0) {
+    return latest ? localPoints.filter((point) => point.date > latest.date) : localPoints
+  }
+  return intervalsPoints ?? []
+}
+
+interface FutureSummary {
+  source: string
+  workouts: number
+  totalPlannedLoad: number
+  minTsb?: number
+}
+
+function futureSummaryForDisplay(
+  intervalsForecast: IntervalsTrainingLoadReport['summary']['forecast'],
+  planOverview: TrainingPlanOverview | null,
+): FutureSummary | null {
+  if (planOverview && planOverview.workouts.length > 0) {
+    return {
+      source: '本地计划',
+      workouts: planOverview.workouts.length,
+      totalPlannedLoad: planOverview.totals.trainingLoad,
+      ...(planOverview.projection?.minTsb !== undefined
+        ? { minTsb: planOverview.projection.minTsb }
+        : {}),
+    }
+  }
+  if (!intervalsForecast) return null
+  return {
+    source: 'ICU',
+    workouts: intervalsForecast.events.length,
+    totalPlannedLoad: intervalsForecast.totalPlannedLoad,
+    ...(intervalsForecast.minTsb !== undefined ? { minTsb: intervalsForecast.minTsb } : {}),
+  }
 }
 
 function TrainingSkeleton() {

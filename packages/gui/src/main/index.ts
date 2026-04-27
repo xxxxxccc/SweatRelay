@@ -5,6 +5,7 @@ import {
   type AppStatus,
   type AutoSyncMode,
   type ConfigurePayload,
+  type DeletePlannedWorkoutPayload,
   type IntervalsAuthPayload,
   IPC_CHANNELS,
   type IpcResult,
@@ -13,8 +14,12 @@ import {
   type SetThemePayload,
   type SetTrainingStatusPayload,
   type SetWatchDirPayload,
+  type SyncTrainingPlanPayload,
   type TrainingLoadPayload,
+  type TrainingPlanPayload,
   type UnlockPayload,
+  type UpdateTrainingPlanPayload,
+  type UpsertPlannedWorkoutPayload,
 } from '../shared/ipc.ts'
 import { logApp, logAppError, logSyncOutcomes } from './logging.ts'
 import { Services } from './services.ts'
@@ -199,6 +204,55 @@ function registerIpc(): void {
       }
     },
   )
+
+  ipcMain.handle(IPC_CHANNELS.trainingPlan, async (_evt, payload?: TrainingPlanPayload) => {
+    try {
+      return ok(await services.getTrainingPlanOverview(payload?.planId))
+    } catch (err) {
+      return fail(IPC_CHANNELS.trainingPlan, err)
+    }
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.updateTrainingPlan,
+    async (_evt, payload: UpdateTrainingPlanPayload) => {
+      try {
+        return ok(await services.updateTrainingPlan(payload))
+      } catch (err) {
+        return fail(IPC_CHANNELS.updateTrainingPlan, err)
+      }
+    },
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.upsertPlannedWorkout,
+    async (_evt, payload: UpsertPlannedWorkoutPayload) => {
+      try {
+        return ok(await services.upsertPlannedWorkout(payload))
+      } catch (err) {
+        return fail(IPC_CHANNELS.upsertPlannedWorkout, err)
+      }
+    },
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.deletePlannedWorkout,
+    async (_evt, payload: DeletePlannedWorkoutPayload) => {
+      try {
+        return ok(await services.deletePlannedWorkout(payload.planId, payload.workoutId))
+      } catch (err) {
+        return fail(IPC_CHANNELS.deletePlannedWorkout, err)
+      }
+    },
+  )
+
+  ipcMain.handle(IPC_CHANNELS.syncTrainingPlan, async (_evt, payload: SyncTrainingPlanPayload) => {
+    try {
+      return ok(await services.syncTrainingPlanToIntervals(payload.planId))
+    } catch (err) {
+      return fail(IPC_CHANNELS.syncTrainingPlan, err)
+    }
+  })
 
   ipcMain.handle(IPC_CHANNELS.setWatchDir, async (_evt, payload: SetWatchDirPayload) => {
     try {
