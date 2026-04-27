@@ -8,7 +8,7 @@ import {
   type PersistedSettingsPatch,
 } from '@sweatrelay/core'
 
-export type { ThemePreference } from '@sweatrelay/core'
+export type { ThemePreference, TrainingStatusRange } from '@sweatrelay/core'
 
 export interface AppPaths {
   configDir: string

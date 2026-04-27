@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { ExternalLink, Mountain, Zap } from 'lucide-react'
+import { Activity, ExternalLink, Mountain, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { SectionHeading } from '@/components/SectionHeading'
 import { StatusDot } from '@/components/StatusDot'
@@ -23,7 +23,7 @@ function Sources() {
       <SectionHeading
         index="01"
         title="数据源"
-        subtitle="连接输入端与唯一原生目标端 Strava。Intervals.icu 等分析平台请在外部服务中通过 Strava 接入。"
+        subtitle="连接输入端与唯一上传目标 Strava。Intervals.icu 作为只读训练负荷来源展示 CTL / ATL / TSB。"
       />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <StravaPanel
@@ -36,6 +36,7 @@ function Sources() {
           account={status.onelapAccount}
           onChange={refresh}
         />
+        <IntervalsPanel connected={status.intervalsConnected} onChange={refresh} />
       </div>
     </div>
   )
@@ -150,6 +151,87 @@ function StravaPanel({
           </a>
         </div>
       </div>
+    </PanelChrome>
+  )
+}
+
+function IntervalsPanel({
+  connected,
+  onChange,
+}: {
+  connected: boolean
+  onChange: () => Promise<void>
+}) {
+  const [apiKey, setApiKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+
+  async function onSubmit(e: React.SyntheticEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    const res = await api.authIntervals({ apiKey })
+    setBusy(false)
+    if (!res.ok) {
+      setMsg({ kind: 'err', text: res.error.message })
+      return
+    }
+    setApiKey('')
+    setMsg({ kind: 'ok', text: '已保存并读取到训练负荷数据' })
+    await onChange()
+  }
+
+  return (
+    <PanelChrome
+      number="01.C"
+      brand="INTERVALS.ICU"
+      tag="只读 · 训练负荷"
+      connected={connected}
+      pill={connected ? '已连接' : '未连接'}
+    >
+      <form className="space-y-5" onSubmit={onSubmit}>
+        <div className="grid grid-cols-2 gap-3">
+          <Datum label="指标">
+            <span className="font-mono text-xs text-fg">CTL / ATL / TSB</span>
+          </Datum>
+          <Datum label="来源">
+            <span className="font-mono text-xs text-fg">wellness API</span>
+          </Datum>
+        </div>
+
+        <Field id="intervals-api-key" label="API Key">
+          <Input
+            id="intervals-api-key"
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Intervals.icu Developer Settings"
+            required
+            autoComplete="off"
+          />
+        </Field>
+
+        {msg ? (
+          <Alert variant={msg.kind === 'ok' ? 'success' : 'destructive'}>
+            <AlertDescription>{msg.text}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={busy}>
+            <Activity className="size-4" />
+            {busy ? '读取中…' : connected ? '更新 API Key' : '连接 Intervals'}
+          </Button>
+          <a
+            href="https://intervals.icu/settings"
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-xs text-fg-muted hover:text-accent"
+          >
+            Developer Settings <ExternalLink className="ml-0.5 inline size-3" />
+          </a>
+        </div>
+      </form>
     </PanelChrome>
   )
 }

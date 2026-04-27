@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   EncryptedFileCredentialStore,
+  INTERVALS_API_KEY,
   KeyringCredentialStore,
   ONELAP_ACCOUNT_KEY,
   STRAVA_CLIENT_ID_KEY,
@@ -103,6 +104,7 @@ describe('CLI credential recovery', () => {
     })
     await fileStore.set(STRAVA_CLIENT_ID_KEY, '12345')
     await fileStore.set(STRAVA_CLIENT_SECRET_KEY, 'secret')
+    await fileStore.set(INTERVALS_API_KEY, 'icu-test-key')
     await fileStore.set(ONELAP_ACCOUNT_KEY, '18817507441')
 
     await writeFile(
@@ -141,6 +143,7 @@ describe('CLI credential recovery', () => {
       hasEncryptedCredentials: cliDiagnostics.hasEncryptedCredentials,
       stravaConfigPresent: cliDiagnostics.stravaConfigPresent,
       stravaTokensPresent: cliDiagnostics.stravaTokensPresent,
+      intervalsCredentialsPresent: cliDiagnostics.intervalsCredentialsPresent,
       onelapCredentialsPresent: cliDiagnostics.onelapCredentialsPresent,
       sharedConfigPresent: cliDiagnostics.sharedConfigPresent,
     })

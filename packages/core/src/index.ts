@@ -8,9 +8,29 @@ export type {
 } from './activity/index.ts'
 export type { ActivityRef, FetchedActivity, ListOptions, SourceAdapter } from './adapters/index.ts'
 export {
+  assessTrainingLoad,
+  IntervalsClient,
+  type IntervalsClientOptions,
+  type IntervalsFetchFitnessOptions,
+  type IntervalsFitnessPoint,
+  type IntervalsFitnessSummary,
+  type IntervalsForecastSummary,
+  type IntervalsPlannedEvent,
+  type IntervalsTrainingLoadReport,
+  type TrainingLoadAssessment,
+  type TrainingStatusLevel,
+  TrainingStatusLevels,
+  type TrainingStatusReason,
+  TrainingStatusReasonSeverities,
+  type TrainingStatusReasonSeverity,
+  type TrainingStatusReasonSource,
+  TrainingStatusReasonSources,
+} from './analytics/index.ts'
+export {
   type CredentialStore,
   EncryptedFileCredentialStore,
   type EncryptedFileCredentialStoreOptions,
+  INTERVALS_API_KEY,
   KeyringCredentialStore,
   type KeyringCredentialStoreOptions,
   MemoryCredentialStore,
@@ -46,6 +66,7 @@ export {
   type SyncedStoreOptions,
   type SyncRecord,
   type ThemePreference,
+  type TrainingStatusRange,
 } from './state/index.ts'
 export {
   FileWatcherTrigger,

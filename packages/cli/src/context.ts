@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import {
   type CredentialStore,
   EncryptedFileCredentialStore,
+  INTERVALS_API_KEY,
   KeyringCredentialStore,
   MirroredCredentialStore,
   makeTokenGetter,
@@ -33,6 +34,7 @@ export interface CliDiagnostics {
   hasEncryptedCredentials: boolean
   stravaConfigPresent: boolean
   stravaTokensPresent: boolean
+  intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
@@ -220,17 +222,20 @@ export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostic
   let storedClientId: string | null = null
   let storedClientSecret: string | null = null
   let stravaTokensPresent = false
+  let intervalsCredentialsPresent = false
   let onelapCredentialsPresent = false
   if (credentials) {
     ;[storedClientId, storedClientSecret] = await Promise.all([
       credentials.get(STRAVA_CLIENT_ID_KEY),
       credentials.get(STRAVA_CLIENT_SECRET_KEY),
     ])
-    const [tokens, onelapAccount] = await Promise.all([
+    const [tokens, intervalsApiKey, onelapAccount] = await Promise.all([
       credentials.get(STRAVA_TOKENS_KEY),
+      credentials.get(INTERVALS_API_KEY),
       credentials.get(ONELAP_ACCOUNT_KEY),
     ])
     stravaTokensPresent = Boolean(tokens)
+    intervalsCredentialsPresent = Boolean(intervalsApiKey)
     onelapCredentialsPresent = Boolean(onelapAccount)
   }
 
@@ -242,6 +247,7 @@ export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostic
       Boolean(storedClientId && storedClientSecret) ||
       readLegacyStravaAppConfig(rawSettings) !== null,
     stravaTokensPresent,
+    intervalsCredentialsPresent,
     onelapCredentialsPresent,
     sharedConfigPresent: Boolean(settings.shared.watchDir || settings.shared.scheduleCron),
   }

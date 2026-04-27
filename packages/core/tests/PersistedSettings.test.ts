@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  INTERVALS_API_KEY,
   mergePersistedSettings,
   normalizePersistedSettings,
   ONELAP_ACCOUNT_KEY,
@@ -30,6 +31,8 @@ describe('persisted settings', () => {
       },
       gui: {
         theme: 'dark',
+        trainingStatusEnabled: false,
+        trainingStatusRange: 'current',
       },
     })
   })
@@ -44,6 +47,8 @@ describe('persisted settings', () => {
           },
           gui: {
             theme: 'system',
+            trainingStatusEnabled: false,
+            trainingStatusRange: 'current',
           },
         },
         {
@@ -63,6 +68,8 @@ describe('persisted settings', () => {
       },
       gui: {
         theme: 'light',
+        trainingStatusEnabled: false,
+        trainingStatusRange: 'current',
       },
     })
   })
@@ -85,6 +92,7 @@ describe('shared credential keys', () => {
     expect(STRAVA_CLIENT_ID_KEY).toBe('strava.clientId')
     expect(STRAVA_CLIENT_SECRET_KEY).toBe('strava.clientSecret')
     expect(STRAVA_TOKENS_KEY).toBe('strava.tokens')
+    expect(INTERVALS_API_KEY).toBe('intervals.apiKey')
     expect(ONELAP_ACCOUNT_KEY).toBe('onelap.account')
     expect(ONELAP_PASSWORD_KEY).toBe('onelap.password')
     expect(ONELAP_SESSION_KEY).toBe('onelap.session')

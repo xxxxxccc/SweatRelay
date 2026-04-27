@@ -111,8 +111,8 @@ sweatrelay doctor
 
 GUI 现在按“同步控制台”来设计：
 
-- `Strava` 是唯一原生目标端
-- `Intervals.icu` 只提供外部服务入口，不在应用内直连上传
+- `Strava` 是唯一原生上传目标端
+- `Intervals.icu` 可作为只读训练负荷来源，在应用内展示 `CTL / ATL / TSB`
 - `文件夹监控` 和 `定时同步` 都属于后台自动同步
 - 如果这两项都没启用，右上角的 `立即同步` 就是当前唯一同步方式
 
@@ -121,6 +121,7 @@ GUI 现在按“同步控制台”来设计：
 1. 用 SweatRelay 把活动同步到 `Strava`
 2. 在 `Intervals.icu` 那边连接 `Strava`
 3. 让 `Intervals.icu` 经由 `Strava` 获取活动
+4. 在 SweatRelay 的 `数据源` 页保存 Intervals.icu API key 后，进入 `训练负荷` 页查看 CTL / ATL / TSB
 
 支持 dark / light 主题切换。
 

@@ -1,13 +1,15 @@
-import type { SyncOutcome, SyncRecord } from '@sweatrelay/core'
+import type { IntervalsTrainingLoadReport, SyncOutcome, SyncRecord } from '@sweatrelay/core'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type AutoSyncMode = 'none' | 'watch' | 'schedule' | 'both'
+export type TrainingStatusRange = 'current' | 'future7' | 'future14'
 
 export interface AppDiagnostics {
   keyringAvailable: boolean
   hasEncryptedCredentials: boolean
   stravaConfigPresent: boolean
   stravaTokensPresent: boolean
+  intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
@@ -20,6 +22,7 @@ export interface AppStatus {
   stravaConnected: boolean
   stravaConfigPresent: boolean
   stravaAthleteId?: number
+  intervalsConnected: boolean
   onelapConnected: boolean
   onelapAccount?: string
   watchDir?: string
@@ -27,6 +30,8 @@ export interface AppStatus {
   autoSyncEnabled: boolean
   autoSyncMode: AutoSyncMode
   manualSyncAvailable: boolean
+  trainingStatusEnabled: boolean
+  trainingStatusRange: TrainingStatusRange
   theme: ThemePreference
   diagnostics: AppDiagnostics
   recentSyncs: SyncRecord[]
@@ -45,6 +50,20 @@ export interface UnlockPayload {
 export interface OnelapAuthPayload {
   account: string
   password: string
+}
+
+export interface IntervalsAuthPayload {
+  apiKey: string
+}
+
+export interface TrainingLoadPayload {
+  days?: number
+  forecastDays?: number
+}
+
+export interface SetTrainingStatusPayload {
+  enabled?: boolean
+  range?: TrainingStatusRange
 }
 
 export interface SetWatchDirPayload {
@@ -75,6 +94,9 @@ export interface SweatRelayApi {
   unlock(payload: UnlockPayload): Promise<IpcResult<AppStatus>>
   authStrava(): Promise<IpcResult<AppStatus>>
   authOnelap(payload: OnelapAuthPayload): Promise<IpcResult<AppStatus>>
+  authIntervals(payload: IntervalsAuthPayload): Promise<IpcResult<AppStatus>>
+  trainingLoad(payload?: TrainingLoadPayload): Promise<IpcResult<IntervalsTrainingLoadReport>>
+  setTrainingStatus(payload: SetTrainingStatusPayload): Promise<IpcResult<AppStatus>>
   setWatchDir(payload: SetWatchDirPayload): Promise<IpcResult<AppStatus>>
   setSchedule(payload: SetSchedulePayload): Promise<IpcResult<AppStatus>>
   setTheme(payload: SetThemePayload): Promise<IpcResult<AppStatus>>
@@ -90,6 +112,9 @@ export const IPC_CHANNELS = {
   unlock: 'sweatrelay:unlock',
   authStrava: 'sweatrelay:authStrava',
   authOnelap: 'sweatrelay:authOnelap',
+  authIntervals: 'sweatrelay:authIntervals',
+  trainingLoad: 'sweatrelay:trainingLoad',
+  setTrainingStatus: 'sweatrelay:setTrainingStatus',
   setWatchDir: 'sweatrelay:setWatchDir',
   setSchedule: 'sweatrelay:setSchedule',
   setTheme: 'sweatrelay:setTheme',

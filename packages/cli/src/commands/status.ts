@@ -21,6 +21,7 @@ export async function status(): Promise<void> {
   console.log(`Only manual sync:    ${yesNo(onlyManualSync)}`)
   console.log(`Strava app config:   ${yesNo(diagnostics.stravaConfigPresent)}`)
   console.log(`Strava authorized:   ${yesNo(diagnostics.stravaTokensPresent)}`)
+  console.log(`Intervals API key:   ${yesNo(diagnostics.intervalsCredentialsPresent)}`)
   console.log()
   console.log('Recent syncs:')
   if (records.length === 0) {
@@ -42,6 +43,7 @@ export async function doctor(): Promise<void> {
   console.log(`creds.enc present:        ${yesNo(diagnostics.hasEncryptedCredentials)}`)
   console.log(`Strava app config:        ${yesNo(diagnostics.stravaConfigPresent)}`)
   console.log(`Strava tokens:            ${yesNo(diagnostics.stravaTokensPresent)}`)
+  console.log(`Intervals API key:        ${yesNo(diagnostics.intervalsCredentialsPresent)}`)
   console.log(`Onelap credentials:       ${yesNo(diagnostics.onelapCredentialsPresent)}`)
   console.log(`Automatic sync config:    ${yesNo(diagnostics.sharedConfigPresent)}`)
 }

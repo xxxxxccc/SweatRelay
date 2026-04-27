@@ -2,13 +2,16 @@ import type { SyncOutcome } from '@sweatrelay/core'
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   type ConfigurePayload,
+  type IntervalsAuthPayload,
   IPC_CHANNELS,
   type IpcResult,
   type OnelapAuthPayload,
   type SetSchedulePayload,
   type SetThemePayload,
+  type SetTrainingStatusPayload,
   type SetWatchDirPayload,
   type SweatRelayApi,
+  type TrainingLoadPayload,
   type UnlockPayload,
 } from '../shared/ipc.ts'
 
@@ -22,6 +25,12 @@ const api: SweatRelayApi = {
   authStrava: () => ipcRenderer.invoke(IPC_CHANNELS.authStrava) as Promise<IpcResult<never>>,
   authOnelap: (payload: OnelapAuthPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.authOnelap, payload) as Promise<IpcResult<never>>,
+  authIntervals: (payload: IntervalsAuthPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.authIntervals, payload) as Promise<IpcResult<never>>,
+  trainingLoad: (payload?: TrainingLoadPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.trainingLoad, payload) as Promise<IpcResult<never>>,
+  setTrainingStatus: (payload: SetTrainingStatusPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setTrainingStatus, payload) as Promise<IpcResult<never>>,
   setWatchDir: (payload: SetWatchDirPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWatchDir, payload) as Promise<IpcResult<never>>,
   setSchedule: (payload: SetSchedulePayload) =>

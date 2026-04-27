@@ -7,5 +7,6 @@ export {
   readLegacyStravaAppConfig,
   type SharedSettings,
   type ThemePreference,
+  type TrainingStatusRange,
 } from './PersistedSettings.ts'
 export { SyncedStore, type SyncedStoreOptions, type SyncRecord } from './SyncedStore.ts'

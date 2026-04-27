@@ -1,4 +1,5 @@
 export type ThemePreference = 'system' | 'light' | 'dark'
+export type TrainingStatusRange = 'current' | 'future7' | 'future14'
 
 export interface SharedSettings {
   watchDir?: string
@@ -8,6 +9,8 @@ export interface SharedSettings {
 
 export interface GuiSettings {
   theme?: ThemePreference
+  trainingStatusEnabled?: boolean
+  trainingStatusRange?: TrainingStatusRange
 }
 
 export interface PersistedSettings {
@@ -29,6 +32,8 @@ interface LegacyPersistedSettings {
   scheduleCron?: string
   scheduleTz?: string
   theme?: ThemePreference
+  trainingStatusEnabled?: boolean
+  trainingStatusRange?: TrainingStatusRange
   shared?: Partial<SharedSettings>
   gui?: Partial<GuiSettings>
 }
@@ -47,6 +52,14 @@ export function normalizePersistedSettings(input: unknown): PersistedSettings {
     },
     gui: {
       theme: gui.theme ?? raw.theme,
+      trainingStatusEnabled:
+        normalizeBoolean(gui.trainingStatusEnabled) ??
+        normalizeBoolean(raw.trainingStatusEnabled) ??
+        false,
+      trainingStatusRange:
+        normalizeTrainingStatusRange(gui.trainingStatusRange) ??
+        normalizeTrainingStatusRange(raw.trainingStatusRange) ??
+        'current',
     },
   }
 }
@@ -81,4 +94,12 @@ export function readLegacyStravaAppConfig(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function normalizeBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function normalizeTrainingStatusRange(value: unknown): TrainingStatusRange | undefined {
+  return value === 'current' || value === 'future7' || value === 'future14' ? value : undefined
 }

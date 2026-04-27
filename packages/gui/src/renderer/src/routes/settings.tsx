@@ -17,7 +17,7 @@ function Settings() {
 
   return (
     <div className="space-y-8">
-      <SectionHeading index="04" title="设置" subtitle="外观、本地存储、外部服务入口和运行诊断。" />
+      <SectionHeading index="05" title="设置" subtitle="外观、本地存储、外部服务入口和运行诊断。" />
 
       <Accordion
         type="multiple"
@@ -71,8 +71,8 @@ function Settings() {
           <AccordionContent>
             <div className="space-y-4 pl-7">
               <p className="text-sm text-fg-muted">
-                SweatRelay 的唯一原生目标端是 Strava。若你也使用 Intervals.icu，请在 Intervals.icu
-                中连接 Strava，让活动经由 Strava 同步过去。
+                SweatRelay 的唯一上传目标端是 Strava。Intervals.icu 可以在数据源页接入 API
+                key，用来只读展示 CTL / ATL / TSB。
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
                 <ExternalLinkCard
@@ -119,6 +119,10 @@ function Settings() {
               <DiagnosticItem
                 label="Strava 已授权"
                 value={yesNo(status.diagnostics.stravaTokensPresent)}
+              />
+              <DiagnosticItem
+                label="Intervals API Key"
+                value={yesNo(status.diagnostics.intervalsCredentialsPresent)}
               />
               <DiagnosticItem
                 label="Onelap 凭证"

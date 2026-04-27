@@ -4,6 +4,9 @@ import {
   type CredentialStore,
   EncryptedFileCredentialStore,
   FileWatcherTrigger,
+  INTERVALS_API_KEY,
+  IntervalsClient,
+  type IntervalsTrainingLoadReport,
   KeyringCredentialStore,
   MirroredCredentialStore,
   makeTokenGetter,
@@ -20,13 +23,20 @@ import {
   type SyncOutcome,
   SyncPipeline,
 } from '@sweatrelay/core'
-import { type AppPaths, loadSettings, saveSettings, type ThemePreference } from './state.ts'
+import {
+  type AppPaths,
+  loadSettings,
+  saveSettings,
+  type ThemePreference,
+  type TrainingStatusRange,
+} from './state.ts'
 
 export interface ServiceDiagnostics {
   keyringAvailable: boolean
   hasEncryptedCredentials: boolean
   stravaConfigPresent: boolean
   stravaTokensPresent: boolean
+  intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
@@ -74,6 +84,7 @@ export class Services {
     hasEncryptedCredentials: false,
     stravaConfigPresent: false,
     stravaTokensPresent: false,
+    intervalsCredentialsPresent: false,
     onelapCredentialsPresent: false,
     sharedConfigPresent: false,
   }
@@ -185,6 +196,25 @@ export class Services {
     await this.refreshDiagnostics()
   }
 
+  async authorizeIntervals(apiKey: string): Promise<void> {
+    if (!this.credentials) throw new Error('Configure first')
+    const trimmed = apiKey.trim()
+    const client = new IntervalsClient({ apiKey: trimmed })
+    await client.fetchFitness(7)
+    await this.credentials.set(INTERVALS_API_KEY, trimmed)
+    await this.refreshDiagnostics()
+  }
+
+  async getIntervalsTrainingLoad(
+    days = 42,
+    forecastDays = 0,
+  ): Promise<IntervalsTrainingLoadReport> {
+    if (!this.credentials) throw new Error('Configure first')
+    const apiKey = await this.credentials.get(INTERVALS_API_KEY)
+    if (!apiKey) throw new Error('Intervals.icu API key not stored')
+    return new IntervalsClient({ apiKey }).fetchTrainingLoadReport({ days, forecastDays })
+  }
+
   async setWatchDir(dir: string | null): Promise<void> {
     await saveSettings(this.paths.settingsPath, { shared: { watchDir: dir ?? undefined } })
     await this.restartTriggers()
@@ -204,6 +234,18 @@ export class Services {
 
   async setTheme(theme: ThemePreference): Promise<void> {
     await saveSettings(this.paths.settingsPath, { gui: { theme } })
+  }
+
+  async setTrainingStatus(payload: {
+    enabled?: boolean
+    range?: TrainingStatusRange
+  }): Promise<void> {
+    await saveSettings(this.paths.settingsPath, {
+      gui: {
+        ...(payload.enabled !== undefined ? { trainingStatusEnabled: payload.enabled } : {}),
+        ...(payload.range ? { trainingStatusRange: payload.range } : {}),
+      },
+    })
   }
 
   async runOnelapSyncOnce(): Promise<SyncOutcome[]> {
@@ -390,22 +432,26 @@ export class Services {
           stravaConfigPresent: legacyConfig !== null,
           stravaTokensPresent: false,
           onelapCredentialsPresent: false,
+          intervalsCredentialsPresent: false,
           sharedConfigPresent: hasSharedConfig(settings),
         },
       }
     }
 
     const config = await this.loadStravaAppConfig(credentials)
-    const [stravaTokensPresent, onelapCredentialsPresent] = await Promise.all([
-      credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
-      credentials.get(ONELAP_ACCOUNT_KEY).then(Boolean),
-    ])
+    const [stravaTokensPresent, intervalsCredentialsPresent, onelapCredentialsPresent] =
+      await Promise.all([
+        credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
+        credentials.get(INTERVALS_API_KEY).then(Boolean),
+        credentials.get(ONELAP_ACCOUNT_KEY).then(Boolean),
+      ])
 
     const diagnostics: ServiceDiagnostics = {
       keyringAvailable,
       hasEncryptedCredentials,
       stravaConfigPresent: config !== null,
       stravaTokensPresent,
+      intervalsCredentialsPresent,
       onelapCredentialsPresent,
       sharedConfigPresent: hasSharedConfig(settings),
     }
@@ -437,12 +483,14 @@ export class Services {
       hasEncryptedCredentials,
       stravaConfigPresent,
       stravaTokensPresent,
+      intervalsCredentialsPresent,
     ] = await Promise.all([
       loadSettings(this.paths.settingsPath),
       this.isKeyringAvailable(),
       fileExists(this.paths.credsPath),
       this.loadStravaAppConfig(this.credentials).then(Boolean),
       this.credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
+      this.credentials.get(INTERVALS_API_KEY).then(Boolean),
     ])
 
     this.lastDiagnostics = {
@@ -450,6 +498,7 @@ export class Services {
       hasEncryptedCredentials,
       stravaConfigPresent,
       stravaTokensPresent,
+      intervalsCredentialsPresent,
       onelapCredentialsPresent: Boolean(await this.credentials.get(ONELAP_ACCOUNT_KEY)),
       sharedConfigPresent: hasSharedConfig(settings),
     }

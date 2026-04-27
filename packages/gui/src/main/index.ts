@@ -5,12 +5,15 @@ import {
   type AppStatus,
   type AutoSyncMode,
   type ConfigurePayload,
+  type IntervalsAuthPayload,
   IPC_CHANNELS,
   type IpcResult,
   type OnelapAuthPayload,
   type SetSchedulePayload,
   type SetThemePayload,
+  type SetTrainingStatusPayload,
   type SetWatchDirPayload,
+  type TrainingLoadPayload,
   type UnlockPayload,
 } from '../shared/ipc.ts'
 import { logApp, logAppError, logSyncOutcomes } from './logging.ts'
@@ -46,11 +49,14 @@ async function buildStatus(): Promise<AppStatus> {
     appVersion: app.getVersion(),
     stravaConnected: stravaAthleteId !== undefined,
     stravaConfigPresent: diagnostics.stravaConfigPresent,
+    intervalsConnected: diagnostics.intervalsCredentialsPresent,
     onelapConnected: onelapAccount !== null,
     autoSyncEnabled,
     autoSyncMode,
     manualSyncAvailable:
       services.configured() && stravaAthleteId !== undefined && onelapAccount !== null,
+    trainingStatusEnabled: settings.gui.trainingStatusEnabled ?? false,
+    trainingStatusRange: settings.gui.trainingStatusRange ?? 'current',
     theme: settings.gui.theme ?? 'system',
     diagnostics,
     recentSyncs,
@@ -164,6 +170,35 @@ function registerIpc(): void {
       return fail(IPC_CHANNELS.authOnelap, err)
     }
   })
+
+  ipcMain.handle(IPC_CHANNELS.authIntervals, async (_evt, payload: IntervalsAuthPayload) => {
+    try {
+      await services.authorizeIntervals(payload.apiKey)
+      return ok(await buildStatus())
+    } catch (err) {
+      return fail(IPC_CHANNELS.authIntervals, err)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.trainingLoad, async (_evt, payload?: TrainingLoadPayload) => {
+    try {
+      return ok(await services.getIntervalsTrainingLoad(payload?.days, payload?.forecastDays))
+    } catch (err) {
+      return fail(IPC_CHANNELS.trainingLoad, err)
+    }
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.setTrainingStatus,
+    async (_evt, payload: SetTrainingStatusPayload) => {
+      try {
+        await services.setTrainingStatus(payload)
+        return ok(await buildStatus())
+      } catch (err) {
+        return fail(IPC_CHANNELS.setTrainingStatus, err)
+      }
+    },
+  )
 
   ipcMain.handle(IPC_CHANNELS.setWatchDir, async (_evt, payload: SetWatchDirPayload) => {
     try {

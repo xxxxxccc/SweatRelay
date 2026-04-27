@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnlockRouteImport } from './routes/unlock'
 import { Route as TriggersRouteImport } from './routes/triggers'
+import { Route as TrainingRouteImport } from './routes/training'
 import { Route as SourcesRouteImport } from './routes/sources'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -25,6 +26,11 @@ const UnlockRoute = UnlockRouteImport.update({
 const TriggersRoute = TriggersRouteImport.update({
   id: '/triggers',
   path: '/triggers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrainingRoute = TrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SourcesRoute = SourcesRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
+  '/training': typeof TrainingRoute
   '/triggers': typeof TriggersRoute
   '/unlock': typeof UnlockRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
+  '/training': typeof TrainingRoute
   '/triggers': typeof TriggersRoute
   '/unlock': typeof UnlockRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/sources': typeof SourcesRoute
+  '/training': typeof TrainingRoute
   '/triggers': typeof TriggersRoute
   '/unlock': typeof UnlockRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/sources'
+    | '/training'
     | '/triggers'
     | '/unlock'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/sources'
+    | '/training'
     | '/triggers'
     | '/unlock'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/sources'
+    | '/training'
     | '/triggers'
     | '/unlock'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
   SourcesRoute: typeof SourcesRoute
+  TrainingRoute: typeof TrainingRoute
   TriggersRoute: typeof TriggersRoute
   UnlockRoute: typeof UnlockRoute
 }
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/triggers'
       fullPath: '/triggers'
       preLoaderRoute: typeof TriggersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/training': {
+      id: '/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof TrainingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sources': {
@@ -181,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
   SourcesRoute: SourcesRoute,
+  TrainingRoute: TrainingRoute,
   TriggersRoute: TriggersRoute,
   UnlockRoute: UnlockRoute,
 }

@@ -1,5 +1,6 @@
 export type { CredentialStore } from './CredentialStore.ts'
 export {
+  INTERVALS_API_KEY,
   ONELAP_ACCOUNT_KEY,
   ONELAP_PASSWORD_KEY,
   ONELAP_SESSION_KEY,

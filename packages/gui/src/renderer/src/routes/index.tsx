@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Eye,
   FolderOpen,
+  Gauge,
   Mountain,
   RefreshCw,
   Timer,
@@ -118,6 +119,14 @@ function Dashboard() {
             sub={status.stravaConnected ? `运动员 · ${status.stravaAthleteId ?? '—'}` : '尚未授权'}
             icon={ActivityIcon}
             to="/sources"
+          />
+          <StatusTile
+            label="训练负荷"
+            value={status.intervalsConnected ? '可读取' : '未连接'}
+            tone={status.intervalsConnected ? 'success' : 'idle'}
+            sub={status.intervalsConnected ? 'Intervals.icu' : '尚未保存 API Key'}
+            icon={Gauge}
+            to={status.intervalsConnected ? '/training' : '/sources'}
           />
           <StatusTile
             label="Onelap"
