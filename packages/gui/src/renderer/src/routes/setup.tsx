@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { statusAtom } from '@/state/atoms'
+import { statusAtom } from '@/state/status'
 
 interface Step {
   num: string

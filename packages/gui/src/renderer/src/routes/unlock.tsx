@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
-import { statusAtom } from '@/state/atoms'
+import { statusAtom } from '@/state/status'
 
 function Unlock() {
   const router = useRouter()

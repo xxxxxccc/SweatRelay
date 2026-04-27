@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { refreshStatusAtom, statusAtom } from '@/state/atoms'
+import { refreshStatusAtom, statusAtom } from '@/state/status'
 
 function Sources() {
   const status = useAtomValue(statusAtom)

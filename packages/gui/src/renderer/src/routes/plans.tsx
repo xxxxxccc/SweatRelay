@@ -9,6 +9,7 @@ import type {
   WorkoutTargetType,
 } from '@sweatrelay/core'
 import { createFileRoute } from '@tanstack/react-router'
+import { useAtomValue, useSetAtom } from 'jotai'
 import {
   CalendarDays,
   ClipboardPaste,
@@ -46,6 +47,11 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import {
+  refreshTrainingPlanAtom,
+  setTrainingPlanCacheAtom,
+  trainingPlanResourceAtom,
+} from '@/state/training'
 
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const
 const STEP_KINDS = {
@@ -99,36 +105,40 @@ type RepeatDraft = {
 type WorkoutDraftItem = StepDraft | RepeatDraft
 
 function PlansRoute() {
-  const [overview, setOverview] = useState<TrainingPlanOverview | null>(null)
+  const planResource = useAtomValue(trainingPlanResourceAtom)
+  const refreshTrainingPlan = useSetAtom(refreshTrainingPlanAtom)
+  const setTrainingPlanCache = useSetAtom(setTrainingPlanCacheAtom)
+  const overview = planResource.value
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null)
   const [workoutDraft, setWorkoutDraft] = useState<WorkoutDraft | null>(null)
   const [copiedWorkout, setCopiedWorkout] = useState<PlannedWorkout | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [working, setWorking] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const busy = working || planResource.loading
+  const refreshing = planResource.refreshing
+  const displayError = err ?? planResource.error
 
-  const refreshPlan = useCallback(async () => {
-    setBusy(true)
-    setErr(null)
-    const res = await api.trainingPlan()
-    setBusy(false)
-    if (!res.ok) {
-      setErr(res.error.message)
-      return
-    }
-    setOverview(res.value)
-    setPlanDraft(planToDraft(res.value))
-  }, [])
+  const refreshPlan = useCallback(
+    async (options: { force?: boolean; silent?: boolean } = {}) => {
+      await refreshTrainingPlan(options)
+    },
+    [refreshTrainingPlan],
+  )
 
   useEffect(() => {
-    void refreshPlan()
+    void refreshPlan({ silent: true })
   }, [refreshPlan])
+
+  useEffect(() => {
+    if (overview) setPlanDraft(planToDraft(overview))
+  }, [overview])
 
   async function savePlan(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!overview || !planDraft) return
-    setBusy(true)
+    setWorking(true)
     setErr(null)
     const res = await api.updateTrainingPlan({
       id: overview.plan.id,
@@ -137,12 +147,12 @@ function PlansRoute() {
       startDate: planDraft.startDate,
       weeks: planDraft.weeks,
     })
-    setBusy(false)
+    setWorking(false)
     if (!res.ok) {
       setErr(res.error.message)
       return
     }
-    setOverview(res.value)
+    setTrainingPlanCache(res.value)
     setPlanDraft(planToDraft(res.value))
     setMessage('计划信息已保存')
   }
@@ -150,16 +160,16 @@ function PlansRoute() {
   async function saveWorkout(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!overview || !workoutDraft) return
-    setBusy(true)
+    setWorking(true)
     setErr(null)
     const payload = workoutDraftToPayload(overview.plan.id, workoutDraft)
     const res = await api.upsertPlannedWorkout(payload)
-    setBusy(false)
+    setWorking(false)
     if (!res.ok) {
       setErr(res.error.message)
       return
     }
-    setOverview(res.value)
+    setTrainingPlanCache(res.value)
     setPlanDraft(planToDraft(res.value))
     setWorkoutDraft(null)
     setMessage('训练已保存')
@@ -175,16 +185,16 @@ function PlansRoute() {
 
   async function pasteWorkout(date: string) {
     if (!overview || !copiedWorkout) return
-    setBusy(true)
+    setWorking(true)
     setErr(null)
     const draft = cloneWorkoutDraft(copiedWorkout, date)
     const res = await api.upsertPlannedWorkout(workoutDraftToPayload(overview.plan.id, draft))
-    setBusy(false)
+    setWorking(false)
     if (!res.ok) {
       setErr(res.error.message)
       return
     }
-    setOverview(res.value)
+    setTrainingPlanCache(res.value)
     setPlanDraft(planToDraft(res.value))
     toast.success('已粘贴训练课', {
       description: `「${copiedWorkout.name}」已添加到 ${formatDate(date)}`,
@@ -194,18 +204,18 @@ function PlansRoute() {
   async function deleteWorkout(workout: PlannedWorkout) {
     if (!overview) return
     if (!window.confirm(`删除「${workout.name}」？这只会删除 SweatRelay 本地计划。`)) return
-    setBusy(true)
+    setWorking(true)
     setErr(null)
     const res = await api.deletePlannedWorkout({
       planId: overview.plan.id,
       workoutId: workout.id,
     })
-    setBusy(false)
+    setWorking(false)
     if (!res.ok) {
       setErr(res.error.message)
       return
     }
-    setOverview(res.value)
+    setTrainingPlanCache(res.value)
     setPlanDraft(planToDraft(res.value))
     setMessage('训练已删除')
   }
@@ -231,7 +241,7 @@ function PlansRoute() {
       setErr(res.error.message)
       return
     }
-    setOverview(res.value.overview)
+    setTrainingPlanCache(res.value.overview)
     setPlanDraft(planToDraft(res.value.overview))
     setMessage(`已同步 ${res.value.result.upserted}/${res.value.result.attempted} 节训练到 ICU`)
   }
@@ -244,9 +254,9 @@ function PlansRoute() {
           title="训练计划"
           subtitle="在 SweatRelay 编排未来训练计划，并预览 CTL / ATL / TSB 风险。"
         />
-        {err ? (
+        {displayError ? (
           <Alert variant="destructive">
-            <AlertDescription>{err}</AlertDescription>
+            <AlertDescription>{displayError}</AlertDescription>
           </Alert>
         ) : null}
         <div className="h-96 animate-pulse rounded-lg bg-surface-2" />
@@ -262,8 +272,12 @@ function PlansRoute() {
         subtitle="本地编排训练结构，实时估算 TSS，并同步 planned workouts 到 Intervals.icu。"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={refreshPlan} disabled={busy}>
-              <RefreshCw className={cn('size-4', busy && 'animate-spin')} />
+            <Button
+              variant="outline"
+              onClick={() => void refreshPlan({ force: true, silent: false })}
+              disabled={busy || refreshing}
+            >
+              <RefreshCw className={cn('size-4', (busy || refreshing) && 'animate-spin')} />
               刷新
             </Button>
             <Button onClick={syncPlan} disabled={syncing || overview.workouts.length === 0}>
@@ -274,9 +288,9 @@ function PlansRoute() {
         }
       />
 
-      {err ? (
+      {displayError ? (
         <Alert variant="destructive">
-          <AlertDescription>{err}</AlertDescription>
+          <AlertDescription>{displayError}</AlertDescription>
         </Alert>
       ) : null}
       {message ? (

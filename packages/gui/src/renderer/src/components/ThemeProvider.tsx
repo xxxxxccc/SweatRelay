@@ -3,7 +3,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-import { refreshStatusAtom, themePreferenceAtom } from '@/state/atoms'
+import { refreshStatusAtom, themePreferenceAtom } from '@/state/status'
 
 type ResolvedTheme = 'light' | 'dark'
 

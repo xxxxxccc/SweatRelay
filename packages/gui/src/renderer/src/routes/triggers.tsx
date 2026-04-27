@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { refreshStatusAtom, statusAtom } from '@/state/atoms'
+import { refreshStatusAtom, statusAtom } from '@/state/status'
 
 function Triggers() {
   const status = useAtomValue(statusAtom)

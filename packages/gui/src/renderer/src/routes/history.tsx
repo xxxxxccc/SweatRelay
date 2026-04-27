@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { statusAtom } from '@/state/atoms'
+import { statusAtom } from '@/state/status'
 
 const SOURCE_LABELS: Record<string, string> = {
   onelap: 'Onelap',

@@ -9,7 +9,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import { statusAtom } from '@/state/atoms'
+import { statusAtom } from '@/state/status'
 
 function Settings() {
   const status = useAtomValue(statusAtom)

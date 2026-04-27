@@ -14,7 +14,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { isMac } from '@/lib/platform'
 import { cn } from '@/lib/utils'
-import { configuredAtom, refreshStatusAtom, statusAtom } from '@/state/atoms'
+import { configuredAtom, refreshStatusAtom, statusAtom } from '@/state/status'
 
 const NAV: ReadonlyArray<{
   to: string

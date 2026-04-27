@@ -4,7 +4,7 @@ import { Monitor, Moon, Sun } from 'lucide-react'
 import { useSetTheme } from '@/components/ThemeProvider'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { themePreferenceAtom } from '@/state/atoms'
+import { themePreferenceAtom } from '@/state/status'
 
 const OPTIONS: ReadonlyArray<{
   value: ThemePreference

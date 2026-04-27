@@ -17,7 +17,13 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { refreshStatusAtom, statusAtom } from '@/state/atoms'
+import { refreshStatusAtom, statusAtom } from '@/state/status'
+import {
+  refreshTrainingLoadAtom,
+  refreshTrainingPlanAtom,
+  trainingLoadResourceAtom,
+  trainingPlanResourceAtom,
+} from '@/state/training'
 
 const HISTORY_DAYS = 42
 const ICU_SERIES_COLORS = {
@@ -35,40 +41,51 @@ const RANGE_OPTIONS: ReadonlyArray<{ value: TrainingStatusRange; label: string; 
 
 function TrainingLoad() {
   const status = useAtomValue(statusAtom)
+  const loadResource = useAtomValue(trainingLoadResourceAtom)
+  const planResource = useAtomValue(trainingPlanResourceAtom)
   const refreshStatus = useSetAtom(refreshStatusAtom)
-  const [report, setReport] = useState<IntervalsTrainingLoadReport | null>(null)
-  const [planOverview, setPlanOverview] = useState<TrainingPlanOverview | null>(null)
-  const [busy, setBusy] = useState(false)
+  const refreshTrainingLoad = useSetAtom(refreshTrainingLoadAtom)
+  const refreshTrainingPlan = useSetAtom(refreshTrainingPlanAtom)
   const [err, setErr] = useState<string | null>(null)
+  const report = loadResource.value
+  const planOverview = planResource.value
+  const busy =
+    loadResource.loading ||
+    loadResource.refreshing ||
+    planResource.loading ||
+    planResource.refreshing
+  const displayError = err ?? loadResource.error ?? planResource.error
   const connected = status?.intervalsConnected ?? false
   const detectionEnabled = status?.trainingStatusEnabled ?? false
   const range = status?.trainingStatusRange ?? 'current'
 
   const refreshLoad = useCallback(
-    async (nextRange: TrainingStatusRange = range) => {
-      setBusy(true)
+    async (
+      nextRange: TrainingStatusRange = range,
+      options: { force?: boolean; silent?: boolean } = {},
+    ) => {
       setErr(null)
-      const [res, planRes] = await Promise.all([
-        api.trainingLoad({
-          days: HISTORY_DAYS,
-          forecastDays: forecastDaysForRange(nextRange),
+      await Promise.all([
+        refreshTrainingLoad({
+          payload: {
+            days: HISTORY_DAYS,
+            forecastDays: forecastDaysForRange(nextRange),
+          },
+          force: options.force,
+          silent: options.silent,
         }),
-        api.trainingPlan(),
+        refreshTrainingPlan({
+          force: options.force,
+          silent: options.silent ?? true,
+        }),
       ])
-      setBusy(false)
-      if (planRes.ok) setPlanOverview(planRes.value)
-      if (!res.ok) {
-        setErr(res.error.message)
-        return
-      }
-      setReport(res.value)
     },
-    [range],
+    [range, refreshTrainingLoad, refreshTrainingPlan],
   )
 
   useEffect(() => {
     if (!connected) return
-    void refreshLoad(range)
+    void refreshLoad(range, { silent: true })
   }, [connected, range, refreshLoad])
 
   if (!status) return null
@@ -81,7 +98,7 @@ function TrainingLoad() {
       return
     }
     await refreshStatus()
-    if (enabled) await refreshLoad(range)
+    if (enabled) await refreshLoad(range, { silent: true })
   }
 
   async function setRange(nextRange: TrainingStatusRange) {
@@ -92,7 +109,7 @@ function TrainingLoad() {
       return
     }
     await refreshStatus()
-    if (detectionEnabled) await refreshLoad(nextRange)
+    if (detectionEnabled) await refreshLoad(nextRange, { silent: true })
   }
 
   return (
@@ -103,7 +120,11 @@ function TrainingLoad() {
         subtitle="ICU 提供 CTL / ATL / Ramp 等原始数据；SweatRelay 用本地规则做状态检测。"
         action={
           connected ? (
-            <Button onClick={() => refreshLoad(range)} disabled={busy} className="min-w-40">
+            <Button
+              onClick={() => void refreshLoad(range, { force: true, silent: false })}
+              disabled={busy}
+              className="min-w-40"
+            >
               <RefreshCw className={cn('size-4', busy && 'animate-spin')} />
               {busy ? '读取中' : '刷新'}
             </Button>
@@ -121,13 +142,13 @@ function TrainingLoad() {
           fetchedAt={report?.summary.fetchedAt}
           onToggle={setDetectionEnabled}
           onRangeChange={setRange}
-          onRefresh={() => refreshLoad(range)}
+          onRefresh={() => refreshLoad(range, { force: true, silent: false })}
         />
       )}
 
-      {err ? (
+      {displayError ? (
         <Alert variant="destructive">
-          <AlertDescription>{err}</AlertDescription>
+          <AlertDescription>{displayError}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -145,7 +166,7 @@ function TrainingLoad() {
         </div>
       ) : null}
 
-      {connected && busy && !report ? <TrainingSkeleton /> : null}
+      {connected && loadResource.loading && !report ? <TrainingSkeleton /> : null}
     </div>
   )
 }
