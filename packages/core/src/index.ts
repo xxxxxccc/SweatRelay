@@ -22,7 +22,13 @@ export {
   STRAVA_CLIENT_SECRET_KEY,
   STRAVA_TOKENS_KEY,
 } from './credentials/index.ts'
-export { detectFormat, type ParseFitOptions, parseFit } from './parsers/index.ts'
+export {
+  detectFormat,
+  type ParseFitOptions,
+  parseFit,
+  type RewriteFitBrandOptions,
+  rewriteFitBrand,
+} from './parsers/index.ts'
 export {
   type SyncOutcome,
   SyncPipeline,

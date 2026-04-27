@@ -17,6 +17,11 @@ declare module '@garmin/fitsdk' {
     checkIntegrity(): boolean
     read(opts?: {
       mesgListener?: (mesgNum: number, mesg: unknown) => void
+      fieldDescriptionListener?: (
+        key: number,
+        developerDataIdMesg: Record<string, unknown>,
+        fieldDescriptionMesg: Record<string, unknown>,
+      ) => void
       applyScaleAndOffset?: boolean
       expandSubFields?: boolean
       expandComponents?: boolean
@@ -25,6 +30,26 @@ declare module '@garmin/fitsdk' {
       includeUnknownFields?: boolean
       mergeHeartRates?: boolean
     }): DecodeResult
+  }
+
+  export class Encoder {
+    constructor(opts?: {
+      fieldDescriptions?: Record<
+        string,
+        {
+          developerDataIdMesg: Record<string, unknown>
+          fieldDescriptionMesg: Record<string, unknown>
+        }
+      > | null
+    })
+    close(): Uint8Array
+    onMesg(mesgNum: number, mesg: Record<string, unknown>): this
+    writeMesg(mesg: Record<string, unknown> & { mesgNum: number }): this
+    addDeveloperField(
+      key: number | string,
+      developerDataIdMesg: Record<string, unknown>,
+      fieldDescriptionMesg: Record<string, unknown>,
+    ): this
   }
 
   /** A loose typing of the message map; FIT has many message types we don't all need. */

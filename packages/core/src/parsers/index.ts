@@ -2,6 +2,7 @@ import { extname } from 'node:path'
 import type { FileFormat } from '../activity/Activity.ts'
 
 export { type ParseFitOptions, parseFit } from './fit.ts'
+export { type RewriteFitBrandOptions, rewriteFitBrand } from './fitBrand.ts'
 
 /** Map a file extension to a Strava data_type, including .gz variants. */
 export function detectFormat(path: string): FileFormat | null {

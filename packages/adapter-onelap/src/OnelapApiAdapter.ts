@@ -10,6 +10,7 @@ import {
   ONELAP_PASSWORD_KEY,
   ONELAP_SESSION_KEY,
   parseFit,
+  rewriteFitBrand,
   SweatRelayError,
 } from '@sweatrelay/core'
 import {
@@ -65,10 +66,15 @@ export class OnelapApiAdapter implements SourceAdapter {
     const durl = ref.meta?.durl as string | undefined
     if (!durl) throw new SweatRelayError(`Onelap ref ${ref.sourceId} missing durl`)
     const bytes = await this.client.downloadFit(session, durl)
-    const activity = parseFit(bytes, { sourceId: ref.sourceId })
+    const brandedBytes = rewriteFitBrand(bytes)
+    const activity = parseFit(brandedBytes, { sourceId: ref.sourceId })
     return {
       activity,
-      file: { bytes, format: 'fit', suggestedName: `${ref.sourceId.replace(':', '_')}.fit` },
+      file: {
+        bytes: brandedBytes,
+        format: 'fit',
+        suggestedName: `${ref.sourceId.replace(':', '_')}.fit`,
+      },
     }
   }
 
