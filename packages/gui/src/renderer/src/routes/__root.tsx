@@ -6,15 +6,21 @@ import {
   CalendarDays,
   Gauge,
   History as HistoryIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings as SettingsIcon,
   Timer,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { isMac } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { configuredAtom, refreshStatusAtom, statusAtom } from '@/state/status'
+
+const SIDEBAR_STORAGE_KEY = 'sweatrelay.sidebar.expanded'
+const SIDEBAR_SHORTCUT_KEY = 'b'
 
 const NAV: ReadonlyArray<{
   to: string
@@ -37,10 +43,28 @@ function RootLayout() {
   const router = useRouter()
   const path = router.state.location.pathname
   const needsUnlock = status?.needsUnlock ?? false
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => readSidebarPreference())
 
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarExpanded))
+  }, [sidebarExpanded])
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (isEditableTarget(event.target)) return
+      if (!(event.metaKey || event.ctrlKey)) return
+      if (event.key.toLowerCase() !== SIDEBAR_SHORTCUT_KEY) return
+      event.preventDefault()
+      setSidebarExpanded((current) => !current)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   useEffect(() => {
     if (!status) return
@@ -88,7 +112,7 @@ function RootLayout() {
       <div className="flex h-screen w-full flex-col overflow-hidden">
         <FramelessHeader />
         <div className="flex min-h-0 flex-1 w-full">
-          <Sidebar />
+          <Sidebar expanded={sidebarExpanded} onExpandedChange={setSidebarExpanded} />
           <main className="min-w-0 flex-1 h-full overflow-y-auto px-10 py-8">
             <Outlet />
           </main>
@@ -155,20 +179,72 @@ function BrandMark() {
   )
 }
 
-function Sidebar() {
+function Sidebar({
+  expanded,
+  onExpandedChange,
+}: {
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+}) {
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-bg/60 px-3 py-6">
+    <aside
+      data-state={expanded ? 'expanded' : 'collapsed'}
+      className={cn(
+        'flex shrink-0 flex-col overflow-hidden border-r border-border bg-bg/60 py-4 transition-all duration-200 ease-out',
+        expanded ? 'w-52 px-3' : 'w-16 px-2',
+      )}
+    >
+      <div
+        className={cn(
+          'mb-4 flex min-h-8 items-center gap-2',
+          expanded ? 'justify-between px-1' : 'justify-center',
+        )}
+      >
+        {expanded ? (
+          <p className="font-mono text-micro uppercase tracking-stamp text-fg-subtle">Navigation</p>
+        ) : null}
+        <SidebarToggle expanded={expanded} onExpandedChange={onExpandedChange} />
+      </div>
       <nav className="flex flex-col gap-0.5">
         {NAV.map((item) => (
-          <NavLink key={item.to} {...item} />
+          <NavLink key={item.to} {...item} expanded={expanded} />
         ))}
       </nav>
-      <div className="mt-auto border-t border-border pt-4">
-        <p className="font-mono text-micro uppercase tracking-wider text-fg-subtle">
-          骑 · 同步 · 上传
-        </p>
-      </div>
     </aside>
+  )
+}
+
+function SidebarToggle({
+  expanded,
+  onExpandedChange,
+}: {
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+}) {
+  const Icon = expanded ? PanelLeftClose : PanelLeftOpen
+  const label = expanded ? '收起侧边栏' : '展开侧边栏'
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="app-region-no-drag size-8 text-fg-muted hover:text-fg"
+          aria-label={label}
+          aria-expanded={expanded}
+          onClick={() => onExpandedChange(!expanded)}
+        >
+          <Icon className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="center">
+        <span>{label}</span>
+        <span className="ml-2 font-mono text-micro uppercase tracking-stamp text-fg-subtle">
+          {isMac ? '⌘B' : 'Ctrl+B'}
+        </span>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -176,27 +252,62 @@ function NavLink({
   to,
   label,
   icon: Icon,
+  expanded,
 }: {
   to: string
   label: string
   icon: React.ComponentType<{ className?: string }>
+  expanded: boolean
 }) {
-  return (
+  const link = (
     <Link
       to={to}
       activeOptions={{ exact: to === '/' }}
-      className="group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm text-fg-muted transition-colors hover:text-fg"
+      className={cn(
+        'group relative flex items-center rounded-md text-sm text-fg-muted transition-colors hover:text-fg',
+        expanded ? 'gap-3 px-3 py-2' : 'justify-center px-0 py-2.5',
+      )}
       activeProps={{
         className: cn(
           'text-fg bg-surface-2',
           // Race-line marker — 2px orange bar on the leading edge
-          "before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-sm before:bg-accent before:content-['']",
+          expanded
+            ? "before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-sm before:bg-accent before:content-['']"
+            : "before:absolute before:-left-2 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-sm before:bg-accent before:content-['']",
         ),
       }}
+      aria-label={label}
     >
       <Icon className="size-4 shrink-0" />
-      <span>{label}</span>
+      <span className={cn('truncate transition-opacity', !expanded && 'sr-only')}>{label}</span>
     </Link>
+  )
+
+  if (expanded) return link
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipContent side="right" align="center">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function readSidebarPreference(): boolean {
+  const value = window.localStorage.getItem(SIDEBAR_STORAGE_KEY)
+  return value === null ? true : value === 'true'
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tagName = target.tagName.toLowerCase()
+  return (
+    target.isContentEditable ||
+    tagName === 'input' ||
+    tagName === 'textarea' ||
+    tagName === 'select'
   )
 }
 
