@@ -69,6 +69,7 @@ const STRUCTURE_TYPES = {
   Step: 'step',
   Repeat: 'repeat',
 } as const
+const PLAN_GRID_COLUMNS = 'grid-cols-[repeat(7,minmax(0,1fr))_minmax(160px,180px)]'
 
 type PlanDraft = {
   name: string
@@ -488,7 +489,7 @@ function PlanCalendar({
 }) {
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-surface">
-      <div className="grid min-w-[980px] grid-cols-[repeat(7,minmax(120px,1fr))_180px] border-b border-border bg-surface-2/60">
+      <div className={cn('grid border-b border-border bg-surface-2/60', PLAN_GRID_COLUMNS)}>
         {WEEKDAYS.map((day) => (
           <div
             key={day}
@@ -499,7 +500,7 @@ function PlanCalendar({
         ))}
         <div className="px-3 py-3 text-center font-display text-lg">周统计</div>
       </div>
-      <div className="max-h-[720px] min-w-[980px] overflow-auto">
+      <div className="max-h-[720px] overflow-y-auto overflow-x-hidden">
         {overview.weeks.map((week) => (
           <PlanWeekRow
             key={week.index}
@@ -539,9 +540,9 @@ function PlanWeekRow({
       <div className="bg-surface-2 px-4 py-1.5 font-mono text-micro uppercase tracking-stamp text-fg-muted">
         第 {week.index} 周 · {formatDate(week.startDate)} - {formatDate(week.endDate)}
       </div>
-      <div className="grid grid-cols-[repeat(7,minmax(120px,1fr))_180px]">
+      <div className={cn('grid', PLAN_GRID_COLUMNS)}>
         {week.days.map((day) => (
-          <div key={day.date} className="min-h-44 border-r border-border p-2">
+          <div key={day.date} className="min-h-44 min-w-0 border-r border-border p-2">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-mono text-micro uppercase tracking-stamp text-fg-subtle">
                 {formatDay(day.date)}
@@ -656,20 +657,20 @@ function WorkoutCard({
   onDelete: () => void
 }) {
   return (
-    <article className="overflow-hidden rounded-md border border-border bg-bg/50">
+    <article className="w-full min-w-0 overflow-hidden rounded-md border border-border bg-bg/50">
       <button
         type="button"
         onClick={onEdit}
-        className="flex w-full items-center justify-between gap-2 bg-accent px-3 py-2 text-left text-accent-fg"
+        className="flex w-full min-w-0 items-center justify-between gap-2 bg-accent px-3 py-2 text-left text-accent-fg"
       >
-        <span className="truncate text-sm font-semibold">{workout.name}</span>
+        <span className="min-w-0 truncate text-sm font-semibold">{workout.name}</span>
         <StatusDot tone={workout.syncState === 'synced' ? 'success' : 'idle'} />
       </button>
-      <div className="space-y-3 px-3 py-3">
-        <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs tabular text-fg">
-          <span>{formatDuration(workout.durationSeconds)}</span>
-          <span>{workout.intensityFactor.toFixed(2)} IF</span>
-          <span>{Math.round(workout.trainingLoad)} TSS</span>
+      <div className="space-y-3 px-2 py-3">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr] gap-1 text-center font-mono text-micro leading-tight tabular text-fg">
+          <WorkoutMetric value={formatDuration(workout.durationSeconds)} />
+          <WorkoutMetric value={workout.intensityFactor.toFixed(2)} label="IF" />
+          <WorkoutMetric value={`${Math.round(workout.trainingLoad)}`} label="TSS" />
         </div>
         <MiniWorkoutBars workout={workout} />
         <div className="flex items-center justify-end gap-2 border-t border-border pt-2">
@@ -709,6 +710,17 @@ function WorkoutCard({
   )
 }
 
+function WorkoutMetric({ value, label }: { value: string; label?: string }) {
+  return (
+    <span className="min-w-0">
+      <span className="block truncate text-xs leading-none">{value}</span>
+      {label ? (
+        <span className="mt-1 block text-micro leading-none text-fg-muted">{label}</span>
+      ) : null}
+    </span>
+  )
+}
+
 function MiniWorkoutBars({ workout }: { workout: PlannedWorkout }) {
   const total = Math.max(1, workout.durationSeconds)
   return (
@@ -744,7 +756,7 @@ function WeekSummary({ week }: { week: TrainingPlanWeek }) {
         ? 'warning'
         : 'idle'
   return (
-    <aside className="bg-surface-2/60 p-4">
+    <aside className="min-w-0 bg-surface-2/60 p-4">
       <div className="mb-3 flex items-center justify-between">
         <p className="font-mono text-micro uppercase tracking-stamp-wide text-fg-subtle">
           Week {week.index}

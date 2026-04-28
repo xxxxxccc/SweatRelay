@@ -646,7 +646,9 @@ function RecentLoadTable({ points }: { points: IntervalsFitnessPoint[] }) {
       <ol className="divide-y divide-border">
         {points.map((point) => (
           <li key={point.date} className="grid grid-cols-[1fr_72px_72px_72px] px-4 py-3 text-sm">
-            <span className="font-mono text-xs text-fg-muted">{formatDate(point.date)}</span>
+            <span className="font-mono text-xs text-fg-muted">
+              {formatCalendarDate(point.date)}
+            </span>
             <span className="text-right font-mono tabular text-fg">{formatMetric(point.ctl)}</span>
             <span className="text-right font-mono tabular text-accent">
               {formatMetric(point.atl)}
@@ -673,7 +675,7 @@ function LoadSummary({
     <aside className="rounded-lg border border-border bg-surface px-5 py-4">
       <p className="font-mono text-micro uppercase tracking-stamp-wide text-accent">Snapshot</p>
       <div className="mt-5 space-y-4">
-        <SummaryRow label="最近日期" value={formatDate(latest.date)} />
+        <SummaryRow label="最近日期" value={formatCalendarDate(latest.date)} />
         <SummaryRow
           label="检测状态"
           value={report.assessment.title}
@@ -843,7 +845,7 @@ function buildChartModel(
     gridY: [top, top + 51, top + 102, top + 153, bottom],
     ticks: tickIndexes.map((index) => ({
       x: x(index),
-      label: formatDate(allPoints[Math.min(index, allPoints.length - 1)]?.date ?? ''),
+      label: formatAxisDate(allPoints[Math.min(index, allPoints.length - 1)]?.date ?? ''),
     })),
     y,
   }
@@ -895,23 +897,32 @@ function displayOptional(value?: number, signed = false): string {
   return signed ? signedMetric(value) : formatMetric(value)
 }
 
-function formatDate(value: string): string {
-  const [, mm, dd] = value.match(/^(\d{4})-(\d{2})-(\d{2})$/) ?? []
-  return mm && dd ? `${mm}/${dd}` : value
+function formatCalendarDate(value: string): string {
+  const parts = parseDateParts(value)
+  return parts ? `${parts.year}/${parts.month}/${parts.day}` : value
+}
+
+function formatAxisDate(value: string): string {
+  const parts = parseDateParts(value)
+  return parts ? `${parts.month}/${parts.day}` : value
+}
+
+function parseDateParts(value: string): { year: string; month: string; day: string } | null {
+  const match = /^(\d{4})[-/](\d{2})[-/](\d{2})/.exec(value)
+  if (!match) return null
+  const [, year, month, day] = match
+  if (!year || !month || !day) return null
+  return { year, month, day }
 }
 
 function formatDateTime(value: string): string {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
-  return d
-    .toLocaleString([], {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    .replace(/\s/g, '')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hour = String(d.getHours()).padStart(2, '0')
+  const minute = String(d.getMinutes()).padStart(2, '0')
+  return `${month}/${day} ${hour}:${minute}`
 }
 
 export const Route = createFileRoute('/training')({ component: TrainingLoad })
