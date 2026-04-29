@@ -27,8 +27,8 @@ import {
 
 const HISTORY_DAYS = 42
 const ICU_SERIES_COLORS = {
-  ctl: 'oklch(59% 0.15 300)',
-  atl: 'oklch(70% 0.14 225)',
+  ctl: 'oklch(70% 0.14 225)',
+  atl: 'oklch(59% 0.15 300)',
   tsb: 'oklch(62% 0.17 145)',
   ramp: 'var(--color-fg-muted)',
 } as const
@@ -346,13 +346,19 @@ function TrainingDashboard({
               42 day load
             </p>
             <h2 className="mt-1 font-display text-2xl uppercase leading-none text-fg">
-              CTL / ATL / TSB
+              训练负荷趋势
             </h2>
+            <p className="mt-2 text-xs text-fg-muted">
+              上半区看体能与疲劳，下半区看状态值；虚线表示未来计划预测。
+            </p>
           </div>
-          <div className="flex items-center gap-4 text-xs text-fg-muted">
-            <Legend color={ICU_SERIES_COLORS.ctl} label="CTL" />
-            <Legend color={ICU_SERIES_COLORS.atl} label="ATL" />
-            <Legend color={ICU_SERIES_COLORS.tsb} label="TSB" />
+          <div className="flex flex-wrap items-center justify-end gap-4 text-xs text-fg-muted">
+            <Legend color={ICU_SERIES_COLORS.ctl} label="体能 CTL" />
+            <Legend color={ICU_SERIES_COLORS.atl} label="疲劳 ATL" />
+            <Legend color={ICU_SERIES_COLORS.tsb} label="状态 TSB" />
+            <span className="font-mono text-micro uppercase tracking-stamp text-fg-subtle">
+              实线 已读取 · 虚线 计划
+            </span>
           </div>
         </div>
         <TrainingChart
@@ -364,6 +370,11 @@ function TrainingDashboard({
           )}
           showBands={detectionEnabled}
         />
+        <div className="border-t border-border px-6 py-4 text-xs leading-6 text-fg-muted">
+          <span className="font-medium text-fg">读图：</span>
+          蓝线是体能，紫线是疲劳；下半区绿色线是状态值，越低表示越疲劳。虚线是按未来计划推算，状态值接近或低于
+          -25 时需要减量或安排恢复。
+        </div>
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
@@ -536,42 +547,102 @@ function TrainingChart({
   return (
     <div className="px-4 py-5">
       <svg
-        viewBox="0 0 720 260"
-        className="h-80 w-full"
+        viewBox="0 0 760 330"
+        className="h-[420px] w-full"
         role="img"
-        aria-label="Training load chart"
+        aria-label="CTL ATL TSB training load chart"
       >
-        {showBands ? <RiskBands model={model} /> : null}
-        {model.gridY.map((y) => (
-          <line
-            key={y}
-            x1="0"
-            x2="720"
-            y1={y}
-            y2={y}
-            stroke="var(--color-border)"
-            strokeWidth="1"
-          />
-        ))}
-        <line
-          x1="0"
-          x2="720"
-          y1={model.zeroY}
-          y2={model.zeroY}
-          stroke="var(--color-border-strong)"
-          strokeDasharray="4 6"
-          strokeWidth="1"
+        <ChartPanelLabel x={12} y={82} label="每日训练负荷" rotate />
+        <ChartPanelLabel x={12} y={224} label="状态值" rotate />
+
+        <rect
+          x={model.left}
+          y={model.loadTop}
+          width={model.plotWidth}
+          height={model.loadHeight}
+          fill="var(--color-bg)"
+          opacity="0.42"
         />
-        <path d={model.ctlPath} fill="none" stroke={ICU_SERIES_COLORS.ctl} strokeWidth="2.4" />
-        <path d={model.atlPath} fill="none" stroke={ICU_SERIES_COLORS.atl} strokeWidth="2.4" />
-        <path d={model.tsbPath} fill="none" stroke={ICU_SERIES_COLORS.tsb} strokeWidth="2" />
-        {model.forecastTsbPath ? (
+        <rect
+          x={model.left}
+          y={model.formTop}
+          width={model.plotWidth}
+          height={model.formHeight}
+          fill="var(--color-bg)"
+          opacity="0.28"
+        />
+
+        {model.ctlAreaPath ? (
+          <path d={model.ctlAreaPath} fill={ICU_SERIES_COLORS.ctl} opacity="0.12" />
+        ) : null}
+
+        {model.loadTicks.map((tick) => (
+          <g key={`load-${tick.value}`}>
+            <line
+              x1={model.left}
+              x2={model.right}
+              y1={tick.y}
+              y2={tick.y}
+              stroke="var(--color-border)"
+              strokeWidth="1"
+            />
+            <text
+              x={model.left - 8}
+              y={tick.y + 4}
+              textAnchor="end"
+              className="font-mono text-micro"
+              style={{ fill: 'var(--color-fg-subtle)' }}
+            >
+              {formatTick(tick.value)}
+            </text>
+          </g>
+        ))}
+
+        {showBands ? <FormRiskBands model={model} /> : null}
+
+        {model.formTicks.map((tick) => (
+          <g key={`form-${tick.value}`}>
+            <line
+              x1={model.left}
+              x2={model.right}
+              y1={tick.y}
+              y2={tick.y}
+              stroke="var(--color-border)"
+              strokeWidth="1"
+              strokeDasharray={tick.value === 0 ? '5 7' : undefined}
+            />
+            <text
+              x={model.left - 8}
+              y={tick.y + 4}
+              textAnchor="end"
+              className="font-mono text-micro"
+              style={{ fill: 'var(--color-fg-subtle)' }}
+            >
+              {formatTick(tick.value)}
+            </text>
+          </g>
+        ))}
+
+        <line
+          x1={model.currentX}
+          x2={model.currentX}
+          y1={model.loadTop}
+          y2={model.formBottom}
+          stroke="var(--color-border-strong)"
+          strokeWidth="1.2"
+          opacity="0.8"
+        />
+
+        <path d={model.ctlPath} fill="none" stroke={ICU_SERIES_COLORS.ctl} strokeWidth="2.3" />
+        <path d={model.atlPath} fill="none" stroke={ICU_SERIES_COLORS.atl} strokeWidth="2.3" />
+        <path d={model.tsbPath} fill="none" stroke={ICU_SERIES_COLORS.tsb} strokeWidth="2.1" />
+        {model.forecastCtlPath ? (
           <path
-            d={model.forecastTsbPath}
+            d={model.forecastCtlPath}
             fill="none"
-            stroke={ICU_SERIES_COLORS.tsb}
-            strokeDasharray="6 7"
-            strokeWidth="2"
+            stroke={ICU_SERIES_COLORS.ctl}
+            strokeDasharray="7 7"
+            strokeWidth="2.1"
           />
         ) : null}
         {model.forecastAtlPath ? (
@@ -579,15 +650,58 @@ function TrainingChart({
             d={model.forecastAtlPath}
             fill="none"
             stroke={ICU_SERIES_COLORS.atl}
-            strokeDasharray="6 7"
-            strokeWidth="2"
+            strokeDasharray="7 7"
+            strokeWidth="2.1"
           />
         ) : null}
+        {model.forecastTsbPath ? (
+          <path
+            d={model.forecastTsbPath}
+            fill="none"
+            stroke={ICU_SERIES_COLORS.tsb}
+            strokeDasharray="7 7"
+            strokeWidth="2.1"
+          />
+        ) : null}
+
+        <ChartPoint x={model.currentX} y={model.currentCtlY} color={ICU_SERIES_COLORS.ctl} />
+        <ChartPoint x={model.currentX} y={model.currentAtlY} color={ICU_SERIES_COLORS.atl} />
+        <ChartPoint x={model.currentX} y={model.currentTsbY} color={ICU_SERIES_COLORS.tsb} />
+
+        <text
+          x={model.currentX}
+          y={model.loadTop - 12}
+          textAnchor="middle"
+          className="font-mono text-micro uppercase tracking-stamp"
+          style={{ fill: 'var(--color-fg-muted)' }}
+        >
+          {formatAxisDate(model.currentDate)}
+        </text>
+
+        <ChartValueRail model={model} />
+
+        <line
+          x1={model.left}
+          x2={model.right}
+          y1={model.loadBottom}
+          y2={model.loadBottom}
+          stroke="var(--color-border-strong)"
+          strokeWidth="1"
+        />
+        <line
+          x1={model.left}
+          x2={model.right}
+          y1={model.formBottom}
+          y2={model.formBottom}
+          stroke="var(--color-border-strong)"
+          strokeWidth="1"
+        />
+
         {model.ticks.map((tick) => (
           <text
             key={tick.x}
             x={tick.x}
-            y="252"
+            y="306"
             textAnchor="middle"
             style={{ fill: 'var(--color-fg-subtle)' }}
             className="font-mono text-micro"
@@ -600,36 +714,211 @@ function TrainingChart({
   )
 }
 
-function RiskBands({ model }: { model: ChartModel }) {
-  const yHigh = model.y(-25)
-  const yLoad = model.y(-10)
-  const yFresh = model.y(15)
+function ChartPanelLabel({
+  x,
+  y,
+  label,
+  rotate,
+}: {
+  x: number
+  y: number
+  label: string
+  rotate?: boolean
+}) {
+  return (
+    <text
+      x={x}
+      y={y}
+      transform={rotate ? `rotate(-90 ${x} ${y})` : undefined}
+      textAnchor="middle"
+      className="font-mono text-micro uppercase tracking-stamp"
+      style={{ fill: 'var(--color-fg-subtle)' }}
+    >
+      {label}
+    </text>
+  )
+}
+
+function ChartPoint({ x, y, color }: { x: number; y: number; color: string }) {
+  return <circle cx={x} cy={y} r="4" fill={color} stroke="var(--color-surface)" strokeWidth="2" />
+}
+
+function ChartValueRail({ model }: { model: ChartModel }) {
+  return (
+    <g>
+      <text
+        x={model.railX}
+        y={model.loadTop + 2}
+        className="font-mono text-micro uppercase tracking-stamp"
+        style={{ fill: 'var(--color-fg-subtle)' }}
+      >
+        当前
+      </text>
+      <ChartRailValue
+        x={model.railX}
+        y={model.loadTop + 28}
+        label="体能"
+        value={model.current.ctl}
+        color={ICU_SERIES_COLORS.ctl}
+      />
+      <ChartRailValue
+        x={model.railX}
+        y={model.loadTop + 56}
+        label="疲劳"
+        value={model.current.atl}
+        color={ICU_SERIES_COLORS.atl}
+      />
+      <ChartRailValue
+        x={model.railX}
+        y={model.formTop + 46}
+        label="状态"
+        value={model.current.tsb}
+        color={ICU_SERIES_COLORS.tsb}
+        signed
+      />
+      <text
+        x={model.railX}
+        y={model.formTop + 76}
+        className="font-mono text-micro uppercase tracking-stamp"
+        style={{ fill: 'var(--color-fg-subtle)' }}
+      >
+        风险区
+      </text>
+      <ChartBandLabel
+        x={model.railX}
+        y={model.formTop + 96}
+        color="var(--color-warning)"
+        label="恢复偏多"
+      />
+      <ChartBandLabel
+        x={model.railX}
+        y={model.formTop + 116}
+        color="var(--color-success)"
+        label="可控区"
+      />
+      <ChartBandLabel
+        x={model.railX}
+        y={model.formTop + 136}
+        color="var(--color-danger)"
+        label="高风险"
+      />
+    </g>
+  )
+}
+
+function ChartRailValue({
+  x,
+  y,
+  label,
+  value,
+  color,
+  signed,
+}: {
+  x: number
+  y: number
+  label: string
+  value: number
+  color: string
+  signed?: boolean
+}) {
+  return (
+    <g>
+      <text x={x} y={y} className="text-xs" style={{ fill: 'var(--color-fg-muted)' }}>
+        {label}
+      </text>
+      <text x={x + 42} y={y} className="font-mono text-xs font-semibold" style={{ fill: color }}>
+        {signed ? signedMetric(value) : formatMetric(value)}
+      </text>
+    </g>
+  )
+}
+
+function ChartBandLabel({
+  x,
+  y,
+  color,
+  label,
+}: {
+  x: number
+  y: number
+  color: string
+  label: string
+}) {
+  return (
+    <g>
+      <circle cx={x} cy={y - 3} r="3" fill={color} />
+      <text x={x + 10} y={y} className="text-micro" style={{ fill: 'var(--color-fg-muted)' }}>
+        {label}
+      </text>
+    </g>
+  )
+}
+
+function FormRiskBands({ model }: { model: ChartModel }) {
+  const yFresh = model.formY(15)
+  const yHigh = model.formY(-25)
+  const yLoad = model.formY(-10)
   return (
     <>
       <rect
-        x="0"
+        x={model.left}
         y={Math.max(0, yHigh)}
-        width="720"
-        height={Math.max(0, 224 - yHigh)}
+        width={model.plotWidth}
+        height={Math.max(0, model.formBottom - yHigh)}
         fill="var(--color-danger)"
         opacity="0.06"
       />
       <rect
-        x="0"
+        x={model.left}
         y={Math.max(0, yLoad)}
-        width="720"
+        width={model.plotWidth}
         height={Math.max(0, yHigh - yLoad)}
         fill="var(--color-warning)"
-        opacity="0.07"
-      />
-      <rect
-        x="0"
-        y="20"
-        width="720"
-        height={Math.max(0, yFresh - 20)}
-        fill="var(--color-success)"
         opacity="0.05"
       />
+      <rect
+        x={model.left}
+        y={Math.max(model.formTop, yFresh)}
+        width={model.plotWidth}
+        height={Math.max(0, yLoad - Math.max(model.formTop, yFresh))}
+        fill="var(--color-success)"
+        opacity="0.045"
+      />
+      <rect
+        x={model.left}
+        y={model.formTop}
+        width={model.plotWidth}
+        height={Math.max(0, yFresh - model.formTop)}
+        fill="var(--color-warning)"
+        opacity="0.035"
+      />
+      <text
+        x={model.right - 6}
+        y={yFresh - 6}
+        textAnchor="end"
+        className="font-mono text-micro uppercase tracking-stamp"
+        style={{ fill: 'var(--color-warning)' }}
+      >
+        恢复偏多
+      </text>
+      <text
+        x={model.right - 6}
+        y={model.formY(-10) - 6}
+        textAnchor="end"
+        className="font-mono text-micro uppercase tracking-stamp"
+        style={{ fill: 'var(--color-success)' }}
+      >
+        可控区
+      </text>
+      <text
+        x={model.right - 6}
+        y={model.formY(-25) + 14}
+        textAnchor="end"
+        className="font-mono text-micro uppercase tracking-stamp"
+        style={{ fill: 'var(--color-danger)' }}
+      >
+        高风险
+      </text>
     </>
   )
 }
@@ -782,15 +1071,38 @@ function TrainingSkeleton() {
 }
 
 interface ChartModel {
+  left: number
+  right: number
+  railX: number
+  plotWidth: number
+  loadTop: number
+  loadBottom: number
+  loadHeight: number
+  formTop: number
+  formBottom: number
+  formHeight: number
   ctlPath: string
   atlPath: string
   tsbPath: string
+  ctlAreaPath?: string
+  forecastCtlPath?: string
   forecastAtlPath?: string
   forecastTsbPath?: string
-  zeroY: number
-  gridY: number[]
+  loadTicks: ChartTick[]
+  formTicks: ChartTick[]
   ticks: Array<{ x: number; label: string }>
-  y: (value: number) => number
+  current: IntervalsFitnessPoint
+  currentDate: string
+  currentX: number
+  currentCtlY: number
+  currentAtlY: number
+  currentTsbY: number
+  formY: (value: number) => number
+}
+
+interface ChartTick {
+  value: number
+  y: number
 }
 
 function buildChartModel(
@@ -798,57 +1110,150 @@ function buildChartModel(
   forecastPoints: IntervalsFitnessPoint[],
 ): ChartModel | null {
   if (points.length < 2) return null
-  const width = 720
-  const top = 20
-  const bottom = 224
+  const left = 46
+  const right = 628
+  const railX = 650
+  const plotWidth = right - left
+  const loadTop = 32
+  const loadBottom = 144
+  const formTop = 164
+  const formBottom = 270
+  const loadHeight = loadBottom - loadTop
+  const formHeight = formBottom - formTop
   const allPoints = [...points, ...forecastPoints]
-  const values = allPoints.flatMap((point) => [point.ctl, point.atl, point.tsb, -25, -10, 15])
-  const minRaw = Math.min(...values)
-  const maxRaw = Math.max(...values)
-  const padding = Math.max(5, (maxRaw - minRaw) * 0.12)
-  const min = minRaw - padding
-  const max = maxRaw + padding
-  const range = max - min || 1
+  const current = points.at(-1)
+  if (!current) return null
+  const loadValues = allPoints.flatMap((point) => [point.ctl, point.atl])
+  const formValues = allPoints.map((point) => point.tsb).concat([-25, -10, 0, 15])
+  const loadTicks = buildNumericTicks(
+    Math.max(0, Math.min(...loadValues)),
+    Math.max(...loadValues),
+    5,
+  )
+  const formTicks = buildNumericTicks(Math.min(...formValues), Math.max(...formValues), 6)
+  const loadMin = loadTicks.at(0) ?? 0
+  const loadMax = loadTicks.at(-1) ?? 1
+  const formMin = formTicks.at(0) ?? -30
+  const formMax = formTicks.at(-1) ?? 20
   const totalSlots = points.length + forecastPoints.length - 1
-  const x = (index: number) => (index / Math.max(1, totalSlots - 1)) * width
-  const y = (value: number) => bottom - ((value - min) / range) * (bottom - top)
+  const x = (index: number) => left + (index / Math.max(1, totalSlots - 1)) * plotWidth
+  const loadY = (value: number) =>
+    loadBottom - ((value - loadMin) / Math.max(1, loadMax - loadMin)) * loadHeight
+  const formY = (value: number) =>
+    formBottom - ((value - formMin) / Math.max(1, formMax - formMin)) * formHeight
   const pathFor = (
     pathPoints: IntervalsFitnessPoint[],
     metric: 'ctl' | 'atl' | 'tsb',
+    yFor: (value: number) => number,
     offset = 0,
   ) =>
     pathPoints
       .map(
         (point, index) =>
-          `${index === 0 ? 'M' : 'L'} ${x(index + offset).toFixed(1)} ${y(point[metric]).toFixed(1)}`,
+          `${index === 0 ? 'M' : 'L'} ${x(index + offset).toFixed(1)} ${yFor(point[metric]).toFixed(1)}`,
       )
       .join(' ')
   const lastHistoryPoint = points.at(-1)
   const forecastPathPoints =
     forecastPoints.length > 0 && lastHistoryPoint ? [lastHistoryPoint, ...forecastPoints] : []
+  const ctlAreaPath = areaPathFor(points, 'ctl', loadY, loadBottom, x)
   const tickIndexes =
     forecastPoints.length > 0
       ? [0, points.length - 1, totalSlots - 1]
       : [0, Math.floor((points.length - 1) / 2), points.length - 1]
+  const currentIndex = points.length - 1
+  const currentX = x(currentIndex)
 
   return {
-    ctlPath: pathFor(points, 'ctl'),
-    atlPath: pathFor(points, 'atl'),
-    tsbPath: pathFor(points, 'tsb'),
+    left,
+    right,
+    railX,
+    plotWidth,
+    loadTop,
+    loadBottom,
+    loadHeight,
+    formTop,
+    formBottom,
+    formHeight,
+    ctlPath: pathFor(points, 'ctl', loadY),
+    atlPath: pathFor(points, 'atl', loadY),
+    tsbPath: pathFor(points, 'tsb', formY),
+    ...(ctlAreaPath ? { ctlAreaPath } : {}),
     ...(forecastPathPoints.length > 0
       ? {
-          forecastAtlPath: pathFor(forecastPathPoints, 'atl', points.length - 1),
-          forecastTsbPath: pathFor(forecastPathPoints, 'tsb', points.length - 1),
+          forecastCtlPath: pathFor(forecastPathPoints, 'ctl', loadY, points.length - 1),
+          forecastAtlPath: pathFor(forecastPathPoints, 'atl', loadY, points.length - 1),
+          forecastTsbPath: pathFor(forecastPathPoints, 'tsb', formY, points.length - 1),
         }
       : {}),
-    zeroY: y(0),
-    gridY: [top, top + 51, top + 102, top + 153, bottom],
+    loadTicks: loadTicks.map((value) => ({ value, y: loadY(value) })),
+    formTicks: formTicks.map((value) => ({ value, y: formY(value) })),
     ticks: tickIndexes.map((index) => ({
       x: x(index),
       label: formatAxisDate(allPoints[Math.min(index, allPoints.length - 1)]?.date ?? ''),
     })),
-    y,
+    current,
+    currentDate: current.date,
+    currentX,
+    currentCtlY: loadY(current.ctl),
+    currentAtlY: loadY(current.atl),
+    currentTsbY: formY(current.tsb),
+    formY,
   }
+}
+
+function areaPathFor(
+  points: IntervalsFitnessPoint[],
+  metric: 'ctl' | 'atl' | 'tsb',
+  yFor: (value: number) => number,
+  baselineY: number,
+  xFor: (index: number) => number,
+): string | null {
+  if (points.length < 2) return null
+  const line = points
+    .map(
+      (point, index) =>
+        `${index === 0 ? 'M' : 'L'} ${xFor(index).toFixed(1)} ${yFor(point[metric]).toFixed(1)}`,
+    )
+    .join(' ')
+  const firstX = xFor(0).toFixed(1)
+  const lastX = xFor(points.length - 1).toFixed(1)
+  return `${line} L ${lastX} ${baselineY.toFixed(1)} L ${firstX} ${baselineY.toFixed(1)} Z`
+}
+
+function buildNumericTicks(min: number, max: number, count: number): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0]
+  if (min === max) return [Math.floor(min), Math.ceil(max + 1)]
+  const range = niceNumber(max - min, false)
+  const step = niceNumber(range / Math.max(1, count - 1), true)
+  const niceMin = Math.floor(min / step) * step
+  const niceMax = Math.ceil(max / step) * step
+  const ticks: number[] = []
+  for (let value = niceMin; value <= niceMax + step * 0.5; value += step) {
+    ticks.push(Number(value.toFixed(4)))
+  }
+  return ticks
+}
+
+function niceNumber(value: number, round: boolean): number {
+  const exponent = Math.floor(Math.log10(value))
+  const fraction = value / 10 ** exponent
+  const niceFraction = round
+    ? fraction < 1.5
+      ? 1
+      : fraction < 3
+        ? 2
+        : fraction < 7
+          ? 5
+          : 10
+    : fraction <= 1
+      ? 1
+      : fraction <= 2
+        ? 2
+        : fraction <= 5
+          ? 5
+          : 10
+  return niceFraction * 10 ** exponent
 }
 
 function previousPoint(
@@ -881,6 +1286,10 @@ function toneForReason(severity: string): 'success' | 'warning' | 'danger' | 'id
 
 function formatMetric(value: number): string {
   return value.toFixed(Math.abs(value) >= 100 ? 0 : 1)
+}
+
+function formatTick(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
 function signedMetric(value: number): string {
