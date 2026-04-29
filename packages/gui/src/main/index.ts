@@ -5,6 +5,7 @@ import {
   type AppStatus,
   type AutoSyncMode,
   type ConfigurePayload,
+  type CorosAuthPayload,
   type DeletePlannedWorkoutPayload,
   type IntervalsAuthPayload,
   IPC_CHANNELS,
@@ -21,7 +22,7 @@ import {
   type UpdateTrainingPlanPayload,
   type UpsertPlannedWorkoutPayload,
 } from '../shared/ipc.ts'
-import { logApp, logAppError, logSyncOutcomes } from './logging.ts'
+import { logApp, logAppError, logCorosImportOutcomes, logSyncOutcomes } from './logging.ts'
 import { Services } from './services.ts'
 import { appPaths } from './state.ts'
 import { configureAutoUpdates } from './updater.ts'
@@ -29,6 +30,7 @@ import { configureAutoUpdates } from './updater.ts'
 let mainWindow: BrowserWindow | null = null
 const services = new Services(appPaths())
 let onelapSyncInFlight = false
+let onelapCorosImportInFlight = false
 
 function ok<T>(value: T): IpcResult<T> {
   return { ok: true, value }
@@ -42,6 +44,7 @@ function fail(scope: string, err: unknown): IpcResult<never> {
 async function buildStatus(): Promise<AppStatus> {
   const settings = await services.loadPersistedSettings()
   const onelapAccount = await services.getOnelapAccount()
+  const corosUserId = await services.getCorosUserId()
   const stravaAthleteId = await services.getStravaAthleteId()
   const diagnostics = services.diagnostics()
   const recentSyncs = services.configured() ? (await services.recentSyncs()).slice(0, 50) : []
@@ -55,11 +58,13 @@ async function buildStatus(): Promise<AppStatus> {
     stravaConnected: stravaAthleteId !== undefined,
     stravaConfigPresent: diagnostics.stravaConfigPresent,
     intervalsConnected: diagnostics.intervalsCredentialsPresent,
+    corosConnected: diagnostics.corosCredentialsPresent,
     onelapConnected: onelapAccount !== null,
     autoSyncEnabled,
     autoSyncMode,
     manualSyncAvailable:
       services.configured() && stravaAthleteId !== undefined && onelapAccount !== null,
+    corosManualSyncAvailable: diagnostics.corosCredentialsPresent && onelapAccount !== null,
     trainingStatusEnabled: settings.gui.trainingStatusEnabled ?? false,
     trainingStatusRange: settings.gui.trainingStatusRange ?? 'current',
     theme: settings.gui.theme ?? 'system',
@@ -68,6 +73,7 @@ async function buildStatus(): Promise<AppStatus> {
   }
   if (stravaAthleteId !== undefined) status.stravaAthleteId = stravaAthleteId
   if (onelapAccount) status.onelapAccount = onelapAccount
+  if (corosUserId) status.corosUserId = corosUserId
   if (settings.shared.watchDir) status.watchDir = settings.shared.watchDir
   if (settings.shared.scheduleCron) status.scheduleCron = settings.shared.scheduleCron
   return status
@@ -182,6 +188,20 @@ function registerIpc(): void {
       return ok(await buildStatus())
     } catch (err) {
       return fail(IPC_CHANNELS.authIntervals, err)
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.authCoros, async (_evt, payload: CorosAuthPayload) => {
+    try {
+      await services.authorizeCoros({
+        userId: payload.userId,
+        accessToken: payload.accessToken,
+        regionId: payload.regionId ?? 2,
+        ...(payload.cookie ? { cookie: payload.cookie } : {}),
+      })
+      return ok(await buildStatus())
+    } catch (err) {
+      return fail(IPC_CHANNELS.authCoros, err)
     }
   })
 
@@ -303,6 +323,31 @@ function registerIpc(): void {
       return fail(IPC_CHANNELS.syncOnelap, err)
     } finally {
       onelapSyncInFlight = false
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.syncOnelapToCoros, async () => {
+    if (onelapCorosImportInFlight) {
+      logApp('sync:onelap-coros ignored reason=already-in-flight')
+      return {
+        ok: false,
+        error: { name: 'SyncInProgressError', message: '正在导入高驰，请等待当前导入完成' },
+      }
+    }
+
+    const startedAt = Date.now()
+    onelapCorosImportInFlight = true
+    try {
+      logApp('sync:onelap-coros start')
+      const outcomes = await services.runOnelapCorosImportOnce()
+      logCorosImportOutcomes('sync:onelap-coros', outcomes)
+      logApp(`sync:onelap-coros complete durationMs=${Date.now() - startedAt}`)
+      return ok(outcomes)
+    } catch (err) {
+      logApp(`sync:onelap-coros failed durationMs=${Date.now() - startedAt}`)
+      return fail(IPC_CHANNELS.syncOnelapToCoros, err)
+    } finally {
+      onelapCorosImportInFlight = false
     }
   })
 

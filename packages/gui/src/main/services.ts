@@ -2,6 +2,13 @@ import { access, readFile } from 'node:fs/promises'
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import {
   buildIntervalsWorkoutEvent,
+  COROS_SESSION_KEY,
+  type CorosImportOutcome,
+  CorosImportPipeline,
+  type CorosRegionId,
+  CorosRegionIds,
+  type CorosSession,
+  CorosUploader,
   type CredentialStore,
   EncryptedFileCredentialStore,
   FileWatcherTrigger,
@@ -45,6 +52,7 @@ export interface ServiceDiagnostics {
   stravaTokensPresent: boolean
   intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
+  corosCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
 
@@ -82,6 +90,7 @@ export class Services {
   private plans: TrainingPlanStore
   private oauth: StravaOAuth | null = null
   private uploader: StravaUploader | null = null
+  private corosUploader: CorosUploader | null = null
   private fileWatcher: FileWatcherTrigger | null = null
   private scheduledTrigger: ScheduledTrigger | null = null
   private listeners = new Set<(outcome: SyncOutcome) => void>()
@@ -94,6 +103,7 @@ export class Services {
     stravaTokensPresent: false,
     intervalsCredentialsPresent: false,
     onelapCredentialsPresent: false,
+    corosCredentialsPresent: false,
     sharedConfigPresent: false,
   }
 
@@ -129,6 +139,7 @@ export class Services {
     if (restore.status !== 'ready') return
 
     this.credentials = restore.credentials
+    this.corosUploader = this.buildCorosUploader(restore.credentials)
     this.oauth = new StravaOAuth({
       clientId: restore.config.clientId,
       clientSecret: restore.config.clientSecret,
@@ -162,6 +173,7 @@ export class Services {
     stravaClientSecret: string,
   ): Promise<void> {
     this.credentials = await buildCredentialStore(this.paths, passphrase)
+    this.corosUploader = this.buildCorosUploader(this.credentials)
     await this.credentials.set(STRAVA_CLIENT_ID_KEY, stravaClientId)
     await this.credentials.set(STRAVA_CLIENT_SECRET_KEY, stravaClientSecret)
     this.oauth = new StravaOAuth({
@@ -213,6 +225,16 @@ export class Services {
     const client = new IntervalsClient({ apiKey: trimmed })
     await client.fetchFitness(7)
     await this.credentials.set(INTERVALS_API_KEY, trimmed)
+    await this.refreshDiagnostics()
+  }
+
+  async authorizeCoros(session: CorosSession): Promise<void> {
+    if (!this.credentials) throw new Error('Configure first')
+    const normalized = normalizeCorosSession(session)
+    const uploader = new CorosUploader({ getSession: async () => normalized })
+    await uploader.fetchRecentImports(1)
+    await this.credentials.set(COROS_SESSION_KEY, JSON.stringify(normalized))
+    this.corosUploader = this.buildCorosUploader(this.credentials)
     await this.refreshDiagnostics()
   }
 
@@ -309,9 +331,31 @@ export class Services {
     return pipeline.handleAdapterPull({ since: daysAgo(7) })
   }
 
+  async runOnelapCorosImportOnce(): Promise<CorosImportOutcome[]> {
+    if (!this.corosUploader || !this.credentials) throw new Error('请先连接高驰 COROS')
+    const adapter = new OnelapApiAdapter({ credentials: this.credentials })
+    const pipeline = new CorosImportPipeline({
+      uploader: this.corosUploader,
+      store: this.store,
+      adapter,
+    })
+    return pipeline.handleAdapterPull({ since: daysAgo(7) })
+  }
+
   async getOnelapAccount(): Promise<string | null> {
     if (!this.credentials) return null
     return this.credentials.get(ONELAP_ACCOUNT_KEY)
+  }
+
+  async getCorosUserId(): Promise<string | undefined> {
+    if (!this.credentials) return undefined
+    const raw = await this.credentials.get(COROS_SESSION_KEY)
+    if (!raw) return undefined
+    try {
+      return (JSON.parse(raw) as CorosSession).userId
+    } catch {
+      return undefined
+    }
   }
 
   async getStravaAthleteId(): Promise<number | undefined> {
@@ -411,6 +455,16 @@ export class Services {
     }
   }
 
+  private buildCorosUploader(credentials: CredentialStore): CorosUploader {
+    return new CorosUploader({
+      getSession: async () => {
+        const raw = await credentials.get(COROS_SESSION_KEY)
+        if (!raw) throw new Error('请先连接高驰 COROS')
+        return JSON.parse(raw) as CorosSession
+      },
+    })
+  }
+
   private async restoreCredentialStore(passphrase?: string): Promise<CredentialStore | null> {
     const hasEncryptedFile = await fileExists(this.paths.credsPath)
 
@@ -496,18 +550,24 @@ export class Services {
           stravaTokensPresent: false,
           onelapCredentialsPresent: false,
           intervalsCredentialsPresent: false,
+          corosCredentialsPresent: false,
           sharedConfigPresent: hasSharedConfig(settings),
         },
       }
     }
 
     const config = await this.loadStravaAppConfig(credentials)
-    const [stravaTokensPresent, intervalsCredentialsPresent, onelapCredentialsPresent] =
-      await Promise.all([
-        credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
-        credentials.get(INTERVALS_API_KEY).then(Boolean),
-        credentials.get(ONELAP_ACCOUNT_KEY).then(Boolean),
-      ])
+    const [
+      stravaTokensPresent,
+      intervalsCredentialsPresent,
+      onelapCredentialsPresent,
+      corosCredentialsPresent,
+    ] = await Promise.all([
+      credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
+      credentials.get(INTERVALS_API_KEY).then(Boolean),
+      credentials.get(ONELAP_ACCOUNT_KEY).then(Boolean),
+      credentials.get(COROS_SESSION_KEY).then(Boolean),
+    ])
 
     const diagnostics: ServiceDiagnostics = {
       keyringAvailable,
@@ -516,6 +576,7 @@ export class Services {
       stravaTokensPresent,
       intervalsCredentialsPresent,
       onelapCredentialsPresent,
+      corosCredentialsPresent,
       sharedConfigPresent: hasSharedConfig(settings),
     }
 
@@ -547,6 +608,7 @@ export class Services {
       stravaConfigPresent,
       stravaTokensPresent,
       intervalsCredentialsPresent,
+      corosCredentialsPresent,
     ] = await Promise.all([
       loadSettings(this.paths.settingsPath),
       this.isKeyringAvailable(),
@@ -554,6 +616,7 @@ export class Services {
       this.loadStravaAppConfig(this.credentials).then(Boolean),
       this.credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
       this.credentials.get(INTERVALS_API_KEY).then(Boolean),
+      this.credentials.get(COROS_SESSION_KEY).then(Boolean),
     ])
 
     this.lastDiagnostics = {
@@ -562,6 +625,7 @@ export class Services {
       stravaConfigPresent,
       stravaTokensPresent,
       intervalsCredentialsPresent,
+      corosCredentialsPresent,
       onelapCredentialsPresent: Boolean(await this.credentials.get(ONELAP_ACCOUNT_KEY)),
       sharedConfigPresent: hasSharedConfig(settings),
     }
@@ -607,4 +671,18 @@ function daysAgo(days: number): Date {
   date.setDate(date.getDate() - days)
   date.setHours(0, 0, 0, 0)
   return date
+}
+
+function normalizeCorosSession(session: CorosSession): CorosSession {
+  return {
+    userId: session.userId.trim(),
+    accessToken: session.accessToken.trim(),
+    regionId: normalizeCorosRegionId(session.regionId),
+    ...(session.cookie?.trim() ? { cookie: session.cookie.trim() } : {}),
+  }
+}
+
+function normalizeCorosRegionId(regionId: CorosRegionId | undefined): CorosRegionId {
+  if (regionId === CorosRegionIds.global || regionId === CorosRegionIds.europe) return regionId
+  return CorosRegionIds.china
 }

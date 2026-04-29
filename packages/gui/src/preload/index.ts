@@ -2,6 +2,7 @@ import type { SyncOutcome } from '@sweatrelay/core'
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   type ConfigurePayload,
+  type CorosAuthPayload,
   type DeletePlannedWorkoutPayload,
   type IntervalsAuthPayload,
   IPC_CHANNELS,
@@ -32,6 +33,8 @@ const api: SweatRelayApi = {
     ipcRenderer.invoke(IPC_CHANNELS.authOnelap, payload) as Promise<IpcResult<never>>,
   authIntervals: (payload: IntervalsAuthPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.authIntervals, payload) as Promise<IpcResult<never>>,
+  authCoros: (payload: CorosAuthPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.authCoros, payload) as Promise<IpcResult<never>>,
   trainingLoad: (payload?: TrainingLoadPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.trainingLoad, payload) as Promise<IpcResult<never>>,
   setTrainingStatus: (payload: SetTrainingStatusPayload) =>
@@ -53,6 +56,8 @@ const api: SweatRelayApi = {
   setTheme: (payload: SetThemePayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.setTheme, payload) as Promise<IpcResult<never>>,
   syncOnelap: () => ipcRenderer.invoke(IPC_CHANNELS.syncOnelap) as Promise<IpcResult<never>>,
+  syncOnelapToCoros: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncOnelapToCoros) as Promise<IpcResult<never>>,
   pickDirectory: () =>
     ipcRenderer.invoke(IPC_CHANNELS.pickDirectory) as Promise<IpcResult<string | null>>,
   onSyncEvent: (handler: (outcome: SyncOutcome) => void) => {

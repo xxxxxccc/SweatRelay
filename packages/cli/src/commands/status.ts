@@ -22,6 +22,7 @@ export async function status(): Promise<void> {
   console.log(`Strava app config:   ${yesNo(diagnostics.stravaConfigPresent)}`)
   console.log(`Strava authorized:   ${yesNo(diagnostics.stravaTokensPresent)}`)
   console.log(`Intervals API key:   ${yesNo(diagnostics.intervalsCredentialsPresent)}`)
+  console.log(`COROS session:       ${yesNo(diagnostics.corosCredentialsPresent)}`)
   console.log()
   console.log('Recent syncs:')
   if (records.length === 0) {
@@ -30,7 +31,7 @@ export async function status(): Promise<void> {
   }
 
   for (const record of records.slice(0, 20)) {
-    const url = record.activityUrl ?? '(no Strava url)'
+    const url = record.activityUrl ?? '(no activity url)'
     console.log(`  [${record.syncedAt}] ${record.source}  ${record.key.slice(0, 32)}  → ${url}`)
   }
 }
@@ -45,6 +46,7 @@ export async function doctor(): Promise<void> {
   console.log(`Strava tokens:            ${yesNo(diagnostics.stravaTokensPresent)}`)
   console.log(`Intervals API key:        ${yesNo(diagnostics.intervalsCredentialsPresent)}`)
   console.log(`Onelap credentials:       ${yesNo(diagnostics.onelapCredentialsPresent)}`)
+  console.log(`COROS session:            ${yesNo(diagnostics.corosCredentialsPresent)}`)
   console.log(`Automatic sync config:    ${yesNo(diagnostics.sharedConfigPresent)}`)
 }
 

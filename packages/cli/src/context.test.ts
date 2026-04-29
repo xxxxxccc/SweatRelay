@@ -146,6 +146,7 @@ describe('CLI credential recovery', () => {
       stravaTokensPresent: cliDiagnostics.stravaTokensPresent,
       intervalsCredentialsPresent: cliDiagnostics.intervalsCredentialsPresent,
       onelapCredentialsPresent: cliDiagnostics.onelapCredentialsPresent,
+      corosCredentialsPresent: cliDiagnostics.corosCredentialsPresent,
       sharedConfigPresent: cliDiagnostics.sharedConfigPresent,
     })
 

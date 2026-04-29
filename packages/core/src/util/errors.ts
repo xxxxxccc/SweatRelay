@@ -19,6 +19,17 @@ export class StravaApiError extends SweatRelayError {
   }
 }
 
+export class CorosApiError extends SweatRelayError {
+  readonly status: number
+  readonly body?: unknown
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message)
+    this.status = status
+    if (body !== undefined) this.body = body
+  }
+}
+
 export class UploadTimeoutError extends SweatRelayError {
   readonly uploadId: string
 

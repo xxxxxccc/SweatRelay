@@ -2,6 +2,7 @@ import { access, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
+  COROS_SESSION_KEY,
   type CredentialStore,
   EncryptedFileCredentialStore,
   INTERVALS_API_KEY,
@@ -36,6 +37,7 @@ export interface CliDiagnostics {
   stravaTokensPresent: boolean
   intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
+  corosCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
 
@@ -224,19 +226,22 @@ export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostic
   let stravaTokensPresent = false
   let intervalsCredentialsPresent = false
   let onelapCredentialsPresent = false
+  let corosCredentialsPresent = false
   if (credentials) {
     ;[storedClientId, storedClientSecret] = await Promise.all([
       credentials.get(STRAVA_CLIENT_ID_KEY),
       credentials.get(STRAVA_CLIENT_SECRET_KEY),
     ])
-    const [tokens, intervalsApiKey, onelapAccount] = await Promise.all([
+    const [tokens, intervalsApiKey, onelapAccount, corosSession] = await Promise.all([
       credentials.get(STRAVA_TOKENS_KEY),
       credentials.get(INTERVALS_API_KEY),
       credentials.get(ONELAP_ACCOUNT_KEY),
+      credentials.get(COROS_SESSION_KEY),
     ])
     stravaTokensPresent = Boolean(tokens)
     intervalsCredentialsPresent = Boolean(intervalsApiKey)
     onelapCredentialsPresent = Boolean(onelapAccount)
+    corosCredentialsPresent = Boolean(corosSession)
   }
 
   return {
@@ -249,6 +254,7 @@ export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostic
     stravaTokensPresent,
     intervalsCredentialsPresent,
     onelapCredentialsPresent,
+    corosCredentialsPresent,
     sharedConfigPresent: Boolean(settings.shared.watchDir || settings.shared.scheduleCron),
   }
 }

@@ -4,6 +4,8 @@ export const STRAVA_TOKENS_KEY = 'strava.tokens'
 
 export const INTERVALS_API_KEY = 'intervals.apiKey'
 
+export const COROS_SESSION_KEY = 'coros.session'
+
 export const ONELAP_ACCOUNT_KEY = 'onelap.account'
 export const ONELAP_PASSWORD_KEY = 'onelap.password'
 export const ONELAP_SESSION_KEY = 'onelap.session'

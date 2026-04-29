@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { Activity, ExternalLink, Mountain, Zap } from 'lucide-react'
+import { Activity, CloudUpload, ExternalLink, Mountain, RefreshCcw, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { SectionHeading } from '@/components/SectionHeading'
 import { StatusDot } from '@/components/StatusDot'
@@ -13,6 +13,12 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { refreshStatusAtom, statusAtom } from '@/state/status'
 
+const COROS_KIND_LABEL: Record<string, string> = {
+  imported: '已导入',
+  'skipped-already-imported': '已导入过',
+  error: '错误',
+}
+
 function Sources() {
   const status = useAtomValue(statusAtom)
   const refresh = useSetAtom(refreshStatusAtom)
@@ -23,7 +29,7 @@ function Sources() {
       <SectionHeading
         index="01"
         title="数据源"
-        subtitle="连接输入端与唯一上传目标 Strava。Intervals.icu 作为只读训练负荷来源展示 CTL / ATL / TSB。"
+        subtitle="连接输入端与上传目标。Onelap 提供骑行文件，Strava 与高驰负责接收，Intervals.icu 只读取训练负荷。"
       />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <StravaPanel
@@ -37,6 +43,11 @@ function Sources() {
           onChange={refresh}
         />
         <IntervalsPanel connected={status.intervalsConnected} onChange={refresh} />
+        <CorosPanel
+          connected={status.corosConnected}
+          userId={status.corosUserId}
+          onChange={refresh}
+        />
       </div>
     </div>
   )
@@ -127,7 +138,7 @@ function StravaPanel({
         </div>
 
         <p className="text-sm text-fg-muted">
-          SweatRelay 只原生上传到 Strava。完成一次授权后，后续同步都会走这条链路。
+          Strava 仍走官方 OAuth。完成一次授权后，Onelap 和文件夹同步都会走这条链路。
         </p>
 
         {err ? (
@@ -317,6 +328,194 @@ function OnelapPanel({
           <span className="font-mono text-micro uppercase tracking-wider text-fg-subtle">
             * 接口为社区已知，仅供个人使用
           </span>
+        </div>
+      </form>
+    </PanelChrome>
+  )
+}
+
+function CorosPanel({
+  connected,
+  userId,
+  onChange,
+}: {
+  connected: boolean
+  userId?: string
+  onChange: () => Promise<void>
+}) {
+  const [corosUserId, setCorosUserId] = useState('')
+  const [accessToken, setAccessToken] = useState('')
+  const [cookie, setCookie] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [corosBusy, setCorosBusy] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
+  const refresh = useSetAtom(refreshStatusAtom)
+  const status = useAtomValue(statusAtom)
+
+  async function onSubmit(e: React.SyntheticEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    const res = await api.authCoros({
+      userId: corosUserId,
+      accessToken,
+      regionId: 2,
+      cookie,
+    })
+    setBusy(false)
+    if (!res.ok) {
+      setMsg({ kind: 'err', text: res.error.message })
+      return
+    }
+    setAccessToken('')
+    setCookie('')
+    setMsg({ kind: 'ok', text: '已连接高驰，可以一键导入 Onelap 到 COROS' })
+    await onChange()
+  }
+
+  async function importCorosNow() {
+    setCorosBusy(true)
+    setFeedback(null)
+    setErrors([])
+    const res = await api.syncOnelapToCoros()
+    setCorosBusy(false)
+    if (!res.ok) {
+      setFeedback(res.error.message)
+      return
+    }
+    const counts = res.value.reduce<Record<string, number>>((acc, o) => {
+      acc[o.kind] = (acc[o.kind] ?? 0) + 1
+      return acc
+    }, {})
+    const summary = Object.entries(counts)
+      .map(([k, v]) => `${COROS_KIND_LABEL[k] ?? k} ${v}`)
+      .join(' · ')
+    setFeedback(summary || '没有新活动')
+    const errorMessages = res.value
+      .filter((o): o is Extract<typeof o, { kind: 'error' }> => o.kind === 'error')
+      .map((o) => `${o.key ?? '未知活动'}：${o.error.message}`)
+    setErrors(errorMessages)
+    await refresh()
+  }
+
+  return (
+    <PanelChrome
+      number="01.D"
+      brand="COROS"
+      tag="高驰 · Training Hub"
+      connected={connected}
+      pill={connected ? '已连接' : '未连接'}
+    >
+      <form className="space-y-5" onSubmit={onSubmit}>
+        <div className="grid grid-cols-2 gap-3">
+          <Datum label="区域">
+            <span className="font-mono text-xs text-fg">中国区</span>
+          </Datum>
+          <Datum label="用户">
+            <span className="font-mono text-xs text-fg">{userId ?? '—'}</span>
+          </Datum>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field id="coros-user-id" label="User ID">
+            <Input
+              id="coros-user-id"
+              value={corosUserId}
+              onChange={(e) => setCorosUserId(e.target.value)}
+              placeholder="Training Hub 用户 ID"
+              required
+              autoComplete="off"
+            />
+          </Field>
+          <Field id="coros-access-token" label="Access Token">
+            <Input
+              id="coros-access-token"
+              type="password"
+              value={accessToken}
+              onChange={(e) => setAccessToken(e.target.value)}
+              placeholder="cookie 里 CPL-coros-token= 后面的值"
+              required
+              autoComplete="off"
+            />
+          </Field>
+        </div>
+
+        <Field id="coros-cookie" label="完整 Cookie">
+          <Input
+            id="coros-cookie"
+            value={cookie}
+            onChange={(e) => setCookie(e.target.value)}
+            placeholder="t.coros.com 任意请求里 cookie header 的完整内容"
+            required
+            autoComplete="off"
+          />
+        </Field>
+
+        <p className="text-sm text-fg-muted">
+          打开 t.coros.com，DevTools → Network 任挑一条 teamcnapi.coros.com 请求， 复制 Request
+          Headers 里 cookie 整段（含 _c_WBKFRo / CPL-coros-token 等）。 STS 端点要校验 session
+          cookie，缺失会 401。
+        </p>
+
+        {msg ? (
+          <Alert variant={msg.kind === 'ok' ? 'success' : 'destructive'}>
+            <AlertDescription>{msg.text}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {feedback ? (
+          <div className="rounded-md border border-border bg-surface px-4 py-2.5 text-sm">
+            <span className="ml-3 text-fg">{feedback}</span>
+          </div>
+        ) : null}
+
+        {errors.length > 0 ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <div className="space-y-1">
+                <div className="font-medium">导入失败的活动</div>
+                <ul className="list-disc space-y-1 pl-4 font-mono text-xs">
+                  {errors.slice(0, 5).map((msg) => (
+                    <li key={msg} className="break-all">
+                      {msg}
+                    </li>
+                  ))}
+                  {errors.length > 5 ? (
+                    <li className="text-fg-muted">
+                      …以及另外 {errors.length - 5} 条，详情见 app.log
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        <div className="flex items-center gap-4">
+          <Button type="submit" disabled={busy}>
+            <CloudUpload className="size-4" />
+            {busy ? '校验中…' : connected ? '更新高驰登录态' : '连接高驰'}
+          </Button>
+          <Button
+            onClick={importCorosNow}
+            disabled={corosBusy || !status?.corosManualSyncAvailable}
+            variant="outline"
+            className="group min-w-40"
+          >
+            {corosBusy ? (
+              <>
+                <RefreshCcw className="size-4 animate-spin" />
+                导入中
+              </>
+            ) : (
+              <>
+                <CloudUpload className="size-4" />
+                导入高驰
+              </>
+            )}
+          </Button>
         </div>
       </form>
     </PanelChrome>

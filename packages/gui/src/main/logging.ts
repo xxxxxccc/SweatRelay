@@ -1,6 +1,6 @@
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { SyncOutcome } from '@sweatrelay/core'
+import type { CorosImportOutcome, SyncOutcome } from '@sweatrelay/core'
 import { app } from 'electron'
 
 const appLogName = 'app.log'
@@ -21,6 +21,24 @@ export function logSyncOutcomes(scope: string, outcomes: SyncOutcome[]): void {
     `${scope} outcomes uploaded=${counts.uploaded} duplicate=${counts.duplicate} skipped=${counts.skipped} error=${counts.error}`,
   )
 
+  for (const outcome of outcomes) {
+    if (outcome.kind !== 'error') continue
+    logApp(
+      `${scope} outcome-error${outcome.key ? ` key=${outcome.key}` : ''} ${formatError(outcome.error)}`,
+    )
+  }
+}
+
+export function logCorosImportOutcomes(scope: string, outcomes: CorosImportOutcome[]): void {
+  const counts = { imported: 0, skipped: 0, error: 0 }
+  for (const o of outcomes) {
+    if (o.kind === 'imported') counts.imported += 1
+    else if (o.kind === 'skipped-already-imported') counts.skipped += 1
+    else counts.error += 1
+  }
+  logApp(
+    `${scope} outcomes imported=${counts.imported} skipped=${counts.skipped} error=${counts.error}`,
+  )
   for (const outcome of outcomes) {
     if (outcome.kind !== 'error') continue
     logApp(

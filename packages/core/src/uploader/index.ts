@@ -1,4 +1,14 @@
 export {
+  type CorosImportResult,
+  type CorosImportTask,
+  type CorosRegionId,
+  CorosRegionIds,
+  type CorosSession,
+  CorosUploader,
+  type CorosUploaderConfig,
+  type CorosUploadOptions,
+} from './CorosUploader.ts'
+export {
   type AuthorizeOptions,
   type OAuthAppConfig,
   StravaOAuth,

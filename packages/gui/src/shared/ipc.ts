@@ -1,4 +1,6 @@
 import type {
+  CorosImportOutcome,
+  CorosRegionId,
   IntervalsTrainingLoadReport,
   SyncOutcome,
   SyncRecord,
@@ -19,6 +21,7 @@ export interface AppDiagnostics {
   stravaTokensPresent: boolean
   intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
+  corosCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
 
@@ -31,6 +34,8 @@ export interface AppStatus {
   stravaConfigPresent: boolean
   stravaAthleteId?: number
   intervalsConnected: boolean
+  corosConnected: boolean
+  corosUserId?: string
   onelapConnected: boolean
   onelapAccount?: string
   watchDir?: string
@@ -38,6 +43,7 @@ export interface AppStatus {
   autoSyncEnabled: boolean
   autoSyncMode: AutoSyncMode
   manualSyncAvailable: boolean
+  corosManualSyncAvailable: boolean
   trainingStatusEnabled: boolean
   trainingStatusRange: TrainingStatusRange
   theme: ThemePreference
@@ -62,6 +68,13 @@ export interface OnelapAuthPayload {
 
 export interface IntervalsAuthPayload {
   apiKey: string
+}
+
+export interface CorosAuthPayload {
+  userId: string
+  accessToken: string
+  regionId?: CorosRegionId
+  cookie?: string
 }
 
 export interface TrainingLoadPayload {
@@ -124,6 +137,7 @@ export interface SweatRelayApi {
   authStrava(): Promise<IpcResult<AppStatus>>
   authOnelap(payload: OnelapAuthPayload): Promise<IpcResult<AppStatus>>
   authIntervals(payload: IntervalsAuthPayload): Promise<IpcResult<AppStatus>>
+  authCoros(payload: CorosAuthPayload): Promise<IpcResult<AppStatus>>
   trainingLoad(payload?: TrainingLoadPayload): Promise<IpcResult<IntervalsTrainingLoadReport>>
   setTrainingStatus(payload: SetTrainingStatusPayload): Promise<IpcResult<AppStatus>>
   trainingPlan(payload?: TrainingPlanPayload): Promise<IpcResult<TrainingPlanOverview>>
@@ -139,6 +153,7 @@ export interface SweatRelayApi {
   setSchedule(payload: SetSchedulePayload): Promise<IpcResult<AppStatus>>
   setTheme(payload: SetThemePayload): Promise<IpcResult<AppStatus>>
   syncOnelap(): Promise<IpcResult<SyncOutcome[]>>
+  syncOnelapToCoros(): Promise<IpcResult<CorosImportOutcome[]>>
   pickDirectory(): Promise<IpcResult<string | null>>
   /** Subscribe to live sync events (file watcher / scheduled). Returns an unsubscribe fn. */
   onSyncEvent(handler: (outcome: SyncOutcome) => void): () => void
@@ -151,6 +166,7 @@ export const IPC_CHANNELS = {
   authStrava: 'sweatrelay:authStrava',
   authOnelap: 'sweatrelay:authOnelap',
   authIntervals: 'sweatrelay:authIntervals',
+  authCoros: 'sweatrelay:authCoros',
   trainingLoad: 'sweatrelay:trainingLoad',
   setTrainingStatus: 'sweatrelay:setTrainingStatus',
   trainingPlan: 'sweatrelay:trainingPlan',
@@ -162,6 +178,7 @@ export const IPC_CHANNELS = {
   setSchedule: 'sweatrelay:setSchedule',
   setTheme: 'sweatrelay:setTheme',
   syncOnelap: 'sweatrelay:syncOnelap',
+  syncOnelapToCoros: 'sweatrelay:syncOnelapToCoros',
   pickDirectory: 'sweatrelay:pickDirectory',
   syncEvent: 'sweatrelay:syncEvent',
 } as const

@@ -70,15 +70,20 @@ function Settings() {
           </AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4 pl-7">
-              <p className="text-sm text-fg-muted">
-                SweatRelay 的唯一上传目标端是 Strava。Intervals.icu 可以在数据源页接入 API
-                key，用来只读展示 CTL / ATL / TSB。
-              </p>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1 text-sm text-fg-muted">
+                <p>SweatRelay 可以同步到 Strava，也可以把 Onelap 活动导入高驰 COROS。</p>
+                <p>Intervals.icu 仍作为训练负荷数据源读取 CTL / ATL / TSB。</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-4">
                 <ExternalLinkCard
                   href="https://www.strava.com/athlete/training"
                   label="打开 Strava"
                   desc="查看已上传活动"
+                />
+                <ExternalLinkCard
+                  href="https://trainingcn.coros.com"
+                  label="打开高驰"
+                  desc="查看导入结果"
                 />
                 <ExternalLinkCard
                   href="https://intervals.icu"
@@ -129,6 +134,10 @@ function Settings() {
                 value={yesNo(status.diagnostics.onelapCredentialsPresent)}
               />
               <DiagnosticItem
+                label="高驰登录态"
+                value={yesNo(status.diagnostics.corosCredentialsPresent)}
+              />
+              <DiagnosticItem
                 label="自动同步配置"
                 value={yesNo(status.diagnostics.sharedConfigPresent)}
               />
@@ -149,7 +158,7 @@ function Settings() {
                 <span className="font-display uppercase tracking-wider text-fg">SweatRelay</span>
                 <span className="ml-2 font-mono text-xs">v{status.appVersion}</span>
               </p>
-              <p>同步控制台负责把 Onelap / 码表导出文件稳定送到 Strava。</p>
+              <p>同步控制台负责把 Onelap / 码表导出文件稳定送到 Strava 和高驰。</p>
               <p>
                 <a
                   href="https://github.com/xxxxxccc/SweatRelay"

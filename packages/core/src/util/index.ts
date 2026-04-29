@@ -1,5 +1,6 @@
 export { dynamicRequire } from './dynamicRequire.ts'
 export {
+  CorosApiError,
   DuplicateActivityError,
   RateLimitError,
   StravaApiError,

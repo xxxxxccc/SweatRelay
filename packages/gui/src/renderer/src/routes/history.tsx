@@ -19,6 +19,7 @@ import { statusAtom } from '@/state/status'
 
 const SOURCE_LABELS: Record<string, string> = {
   onelap: 'Onelap',
+  'onelap:coros': 'Onelap → COROS',
   'onelap-folder': 'Onelap · Folder',
   'magene-folder': 'Magene',
   'blackbird-folder': 'Blackbird',

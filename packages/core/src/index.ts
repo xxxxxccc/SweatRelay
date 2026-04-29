@@ -29,6 +29,7 @@ export {
   TrainingStatusReasonSources,
 } from './analytics/index.ts'
 export {
+  COROS_SESSION_KEY,
   type CredentialStore,
   EncryptedFileCredentialStore,
   type EncryptedFileCredentialStoreOptions,
@@ -52,6 +53,9 @@ export {
   rewriteFitBrand,
 } from './parsers/index.ts'
 export {
+  type CorosImportOutcome,
+  CorosImportPipeline,
+  type CorosImportPipelineOptions,
   type SyncOutcome,
   SyncPipeline,
   type SyncPipelineOptions,
@@ -128,6 +132,14 @@ export {
 } from './triggers/index.ts'
 export {
   type AuthorizeOptions,
+  type CorosImportResult,
+  type CorosImportTask,
+  type CorosRegionId,
+  CorosRegionIds,
+  type CorosSession,
+  CorosUploader,
+  type CorosUploaderConfig,
+  type CorosUploadOptions,
   makeTokenGetter,
   type OAuthAppConfig,
   type PollOptions,
@@ -140,6 +152,7 @@ export {
   type UploadResult,
 } from './uploader/index.ts'
 export {
+  CorosApiError,
   DuplicateActivityError,
   RateLimitError,
   StravaApiError,
