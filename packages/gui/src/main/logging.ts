@@ -1,6 +1,6 @@
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { CorosImportOutcome, SyncOutcome } from '@sweatrelay/core'
+import type { CorosImportOutcome, GarminImportOutcome, SyncOutcome } from '@sweatrelay/core'
 import { app } from 'electron'
 
 const appLogName = 'app.log'
@@ -47,6 +47,25 @@ export function logCorosImportOutcomes(scope: string, outcomes: CorosImportOutco
   }
 }
 
+export function logGarminImportOutcomes(scope: string, outcomes: GarminImportOutcome[]): void {
+  const counts = { imported: 0, skipped: 0, duplicate: 0, error: 0 }
+  for (const o of outcomes) {
+    if (o.kind === 'imported') counts.imported += 1
+    else if (o.kind === 'skipped-already-imported') counts.skipped += 1
+    else if (o.kind === 'skipped-duplicate') counts.duplicate += 1
+    else counts.error += 1
+  }
+  logApp(
+    `${scope} outcomes imported=${counts.imported} skipped=${counts.skipped} duplicate=${counts.duplicate} error=${counts.error}`,
+  )
+  for (const outcome of outcomes) {
+    if (outcome.kind !== 'error') continue
+    logApp(
+      `${scope} outcome-error${outcome.key ? ` key=${outcome.key}` : ''} ${formatError(outcome.error)}`,
+    )
+  }
+}
+
 export function appLogPath(): string {
   return join(app.getPath('userData'), 'logs', appLogName)
 }
@@ -81,11 +100,28 @@ function countOutcomes(outcomes: SyncOutcome[]): {
 }
 
 function formatError(err: unknown): string {
-  if (err instanceof Error) return err.stack ?? `${err.name}: ${err.message}`
+  if (err instanceof Error) {
+    const details = errorDetails(err)
+    const base = err.stack ?? `${err.name}: ${err.message}`
+    return details ? `${base}\n${details}` : base
+  }
   if (typeof err === 'string') return err
   try {
     return JSON.stringify(err)
   } catch {
     return String(err)
+  }
+}
+
+function errorDetails(err: Error): string {
+  const record = err as Error & { status?: unknown; body?: unknown }
+  const details: Record<string, unknown> = {}
+  if (typeof record.status === 'number') details.status = record.status
+  if (record.body !== undefined) details.body = record.body
+  if (Object.keys(details).length === 0) return ''
+  try {
+    return `details=${JSON.stringify(details)}`
+  } catch {
+    return `details=${String(details)}`
   }
 }

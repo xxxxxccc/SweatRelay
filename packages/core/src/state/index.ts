@@ -1,4 +1,6 @@
 export {
+  type AutoSyncTarget,
+  AutoSyncTargets,
   type GuiSettings,
   mergePersistedSettings,
   normalizePersistedSettings,

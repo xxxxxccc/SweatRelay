@@ -4,6 +4,7 @@ import {
   type ConfigurePayload,
   type CorosAuthPayload,
   type DeletePlannedWorkoutPayload,
+  type GarminAuthPayload,
   type IntervalsAuthPayload,
   IPC_CHANNELS,
   type IpcResult,
@@ -35,6 +36,10 @@ const api: SweatRelayApi = {
     ipcRenderer.invoke(IPC_CHANNELS.authIntervals, payload) as Promise<IpcResult<never>>,
   authCoros: (payload: CorosAuthPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.authCoros, payload) as Promise<IpcResult<never>>,
+  authGarmin: (payload: GarminAuthPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.authGarmin, payload) as Promise<IpcResult<never>>,
+  disconnectGarmin: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.disconnectGarmin) as Promise<IpcResult<never>>,
   trainingLoad: (payload?: TrainingLoadPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.trainingLoad, payload) as Promise<IpcResult<never>>,
   setTrainingStatus: (payload: SetTrainingStatusPayload) =>
@@ -49,6 +54,8 @@ const api: SweatRelayApi = {
     ipcRenderer.invoke(IPC_CHANNELS.deletePlannedWorkout, payload) as Promise<IpcResult<never>>,
   syncTrainingPlan: (payload: SyncTrainingPlanPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncTrainingPlan, payload) as Promise<IpcResult<never>>,
+  syncTrainingPlanToGarmin: (payload: SyncTrainingPlanPayload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncTrainingPlanToGarmin, payload) as Promise<IpcResult<never>>,
   setWatchDir: (payload: SetWatchDirPayload) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWatchDir, payload) as Promise<IpcResult<never>>,
   setSchedule: (payload: SetSchedulePayload) =>
@@ -58,6 +65,8 @@ const api: SweatRelayApi = {
   syncOnelap: () => ipcRenderer.invoke(IPC_CHANNELS.syncOnelap) as Promise<IpcResult<never>>,
   syncOnelapToCoros: () =>
     ipcRenderer.invoke(IPC_CHANNELS.syncOnelapToCoros) as Promise<IpcResult<never>>,
+  syncOnelapToGarmin: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncOnelapToGarmin) as Promise<IpcResult<never>>,
   pickDirectory: () =>
     ipcRenderer.invoke(IPC_CHANNELS.pickDirectory) as Promise<IpcResult<string | null>>,
   onSyncEvent: (handler: (outcome: SyncOutcome) => void) => {

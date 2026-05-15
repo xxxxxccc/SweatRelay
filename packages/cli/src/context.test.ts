@@ -147,6 +147,7 @@ describe('CLI credential recovery', () => {
       intervalsCredentialsPresent: cliDiagnostics.intervalsCredentialsPresent,
       onelapCredentialsPresent: cliDiagnostics.onelapCredentialsPresent,
       corosCredentialsPresent: cliDiagnostics.corosCredentialsPresent,
+      garminCredentialsPresent: cliDiagnostics.garminCredentialsPresent,
       sharedConfigPresent: cliDiagnostics.sharedConfigPresent,
     })
 

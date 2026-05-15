@@ -14,25 +14,35 @@ export class MirroredCredentialStore implements CredentialStore {
     for (let index = 0; index < stores.length; index++) {
       const store = stores[index]
       if (!store) continue
-      const value = await store.get(key)
+      let value: string | null
+      try {
+        value = await store.get(key)
+      } catch {
+        continue
+      }
       if (value === null) continue
-      await Promise.all(stores.slice(0, index).map((store) => store.set(key, value)))
+      await Promise.allSettled(stores.slice(0, index).map((store) => store.set(key, value)))
       return value
     }
     return null
   }
 
   async set(key: string, value: string): Promise<void> {
-    await Promise.all([this.primary, ...this.mirrors].map((store) => store.set(key, value)))
+    await this.primary.set(key, value)
+    await Promise.allSettled(this.mirrors.map((store) => store.set(key, value)))
   }
 
   async delete(key: string): Promise<void> {
-    await Promise.all([this.primary, ...this.mirrors].map((store) => store.delete(key)))
+    await this.primary.delete(key)
+    await Promise.allSettled(this.mirrors.map((store) => store.delete(key)))
   }
 
   async keys(): Promise<string[]> {
-    const all = await Promise.all([this.primary, ...this.mirrors].map((store) => store.keys()))
-    return [...new Set(all.flat())]
+    const all = await Promise.allSettled(
+      [this.primary, ...this.mirrors].map((store) => store.keys()),
+    )
+    const fulfilled = all.flatMap((result) => (result.status === 'fulfilled' ? result.value : []))
+    return [...new Set(fulfilled)]
   }
 
   async mirrorFrom(store: CredentialStore): Promise<number> {

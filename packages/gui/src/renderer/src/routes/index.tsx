@@ -11,6 +11,7 @@ import {
   Mountain,
   RefreshCw,
   Timer,
+  Watch,
   Zap,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -40,7 +41,10 @@ function Dashboard() {
   const weekCount = records.filter((r) => Date.parse(r.syncedAt) > weekStart).length
 
   const hasAnySource = status.onelapConnected || !!status.watchDir || !!status.scheduleCron
-  const ready = (status.stravaConnected && hasAnySource) || status.corosManualSyncAvailable
+  const ready =
+    (status.stravaConnected && hasAnySource) ||
+    status.corosManualSyncAvailable ||
+    status.garminManualSyncAvailable
   const liveTriggers = (status.watchDir ? 1 : 0) + (status.scheduleCron ? 1 : 0)
 
   async function syncNow() {
@@ -146,6 +150,15 @@ function Dashboard() {
             icon={CloudUpload}
             to="/sources"
             mono={!!status.corosUserId}
+          />
+          <StatusTile
+            label="Garmin"
+            value={status.garminConnected ? '已连接' : '未连接'}
+            tone={status.garminConnected ? 'success' : 'idle'}
+            sub={status.garminDisplayName ? `账号 · ${status.garminDisplayName}` : '尚未保存登录态'}
+            icon={Watch}
+            to="/sources"
+            mono={!!status.garminDisplayName}
           />
           <StatusTile
             label="文件夹监控"
@@ -457,6 +470,7 @@ const KIND_LABEL: Record<string, string> = {
 const SOURCE_LABELS: Record<string, string> = {
   onelap: 'Onelap',
   'onelap:coros': 'Onelap → COROS',
+  'onelap:garmin': 'Onelap → Garmin',
   'onelap-folder': 'Onelap · Folder',
   'magene-folder': 'Magene',
   'blackbird-folder': 'Blackbird',
@@ -504,18 +518,19 @@ function dashboardSubtitle(status: DashboardStatus): string {
   if (!status.stravaConfigPresent) {
     return '先完成 Strava 配置，再把这个应用当作同步控制台来用。'
   }
-  if (!status.stravaConnected && !status.corosManualSyncAvailable) {
+  const hasDirectImport = status.corosManualSyncAvailable || status.garminManualSyncAvailable
+  if (!status.stravaConnected && !hasDirectImport) {
     return 'Strava 已配置，但还没授权。完成授权后才能开始同步。'
   }
-  if (!status.stravaConnected && status.corosManualSyncAvailable) {
-    return '高驰导入已可用。Strava 尚未授权，授权后可同时同步 Strava。'
+  if (!status.stravaConnected && hasDirectImport) {
+    return '设备平台导入已可用。Strava 尚未授权，授权后可同时同步 Strava。'
   }
   if (!status.onelapConnected && !status.watchDir && !status.scheduleCron) {
     return '还没有接入任何数据来源。先连接 Onelap 或启用文件夹监控。'
   }
   if (!status.autoSyncEnabled) {
-    return status.corosConnected
-      ? '当前可手动同步到 Strava，也可一键导入高驰。想让 Strava 自己跑，需要启用文件夹监控或定时同步。'
+    return status.corosConnected || status.garminConnected
+      ? '当前可手动同步到 Strava，也可一键导入设备平台。想让 Strava 自己跑，需要启用文件夹监控或定时同步。'
       : '当前仅支持手动同步。想让它自己跑，需要启用文件夹监控或定时同步。'
   }
   return `同步控制台已就绪。后台自动同步来源：${autoSourceLabel(status.autoSyncMode)}。`
@@ -529,7 +544,11 @@ function manualSyncHint(status: DashboardStatus): string {
 }
 
 function currentModeLabel(status: DashboardStatus): string {
-  if (!status.stravaConnected && status.corosManualSyncAvailable) return '高驰导入'
+  if (
+    !status.stravaConnected &&
+    (status.corosManualSyncAvailable || status.garminManualSyncAvailable)
+  )
+    return '设备导入'
   if (!status.stravaConnected) return '等待授权'
   if (!status.autoSyncEnabled && status.manualSyncAvailable) return '手动同步'
   if (status.autoSyncMode === 'both') return '手动 + 自动'
@@ -539,8 +558,11 @@ function currentModeLabel(status: DashboardStatus): string {
 }
 
 function currentModeDescription(status: DashboardStatus): string {
-  if (!status.stravaConnected && status.corosManualSyncAvailable)
-    return 'Onelap 与高驰已连接，可先导入 COROS。'
+  if (
+    !status.stravaConnected &&
+    (status.corosManualSyncAvailable || status.garminManualSyncAvailable)
+  )
+    return 'Onelap 与设备平台已连接，可先导入活动。'
   if (!status.stravaConnected) return '先授权 Strava，再决定手动或自动同步。'
   if (!status.autoSyncEnabled && status.manualSyncAvailable)
     return 'Onelap 已连接，点击右上角即可立即拉取。'

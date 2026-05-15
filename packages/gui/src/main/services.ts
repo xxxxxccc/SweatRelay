@@ -1,6 +1,9 @@
 import { access, readFile } from 'node:fs/promises'
 import { OnelapApiAdapter } from '@sweatrelay/adapter-onelap'
 import {
+  type AutoSyncTarget,
+  AutoSyncTargets,
+  buildGarminWorkoutSyncItem,
   buildIntervalsWorkoutEvent,
   COROS_SESSION_KEY,
   type CorosImportOutcome,
@@ -12,6 +15,16 @@ import {
   type CredentialStore,
   EncryptedFileCredentialStore,
   FileWatcherTrigger,
+  GARMIN_SESSION_KEY,
+  type GarminApiFetch,
+  type GarminDomain,
+  GarminDomains,
+  type GarminImportOutcome,
+  GarminImportPipeline,
+  type GarminMfaChallenge,
+  type GarminSession,
+  GarminUploader,
+  type GarminWorkoutSyncResult,
   INTERVALS_API_KEY,
   IntervalsClient,
   type IntervalsTrainingLoadReport,
@@ -36,6 +49,8 @@ import {
   type TrainingProjectionSeed,
   type UpdateTrainingPlanInput,
   type UpsertPlannedWorkoutInput,
+  workoutNeedsGarminFtp,
+  workoutNeedsGarminMaxHeartRate,
 } from '@sweatrelay/core'
 import {
   type AppPaths,
@@ -53,7 +68,18 @@ export interface ServiceDiagnostics {
   intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
   corosCredentialsPresent: boolean
+  garminCredentialsPresent: boolean
   sharedConfigPresent: boolean
+}
+
+interface PendingGarminMfa {
+  email: string
+  domain: GarminDomain
+  challenge: GarminMfaChallenge
+}
+
+interface ServicesOptions {
+  garminApiFetch?: GarminApiFetch
 }
 
 type RestoreStatus = 'unconfigured' | 'needsUnlock' | 'ready'
@@ -91,10 +117,13 @@ export class Services {
   private oauth: StravaOAuth | null = null
   private uploader: StravaUploader | null = null
   private corosUploader: CorosUploader | null = null
+  private garminUploader: GarminUploader | null = null
+  private pendingGarminMfa: PendingGarminMfa | null = null
   private fileWatcher: FileWatcherTrigger | null = null
   private scheduledTrigger: ScheduledTrigger | null = null
   private listeners = new Set<(outcome: SyncOutcome) => void>()
   private errorListeners = new Set<(scope: string, err: unknown) => void>()
+  private readonly garminApiFetch?: GarminApiFetch
   private restoreStatus: RestoreStatus = 'unconfigured'
   private lastDiagnostics: ServiceDiagnostics = {
     keyringAvailable: false,
@@ -104,11 +133,13 @@ export class Services {
     intervalsCredentialsPresent: false,
     onelapCredentialsPresent: false,
     corosCredentialsPresent: false,
+    garminCredentialsPresent: false,
     sharedConfigPresent: false,
   }
 
-  constructor(paths: AppPaths) {
+  constructor(paths: AppPaths, options: ServicesOptions = {}) {
     this.paths = paths
+    this.garminApiFetch = options.garminApiFetch
     this.store = new SyncedStore({
       path: paths.syncedPath,
       legacyJsonPath: paths.syncedPath.replace(/\.sqlite$/, '.json'),
@@ -140,6 +171,7 @@ export class Services {
 
     this.credentials = restore.credentials
     this.corosUploader = this.buildCorosUploader(restore.credentials)
+    this.garminUploader = this.buildGarminUploader(restore.credentials)
     this.oauth = new StravaOAuth({
       clientId: restore.config.clientId,
       clientSecret: restore.config.clientSecret,
@@ -174,6 +206,7 @@ export class Services {
   ): Promise<void> {
     this.credentials = await buildCredentialStore(this.paths, passphrase)
     this.corosUploader = this.buildCorosUploader(this.credentials)
+    this.garminUploader = this.buildGarminUploader(this.credentials)
     await this.credentials.set(STRAVA_CLIENT_ID_KEY, stravaClientId)
     await this.credentials.set(STRAVA_CLIENT_SECRET_KEY, stravaClientSecret)
     this.oauth = new StravaOAuth({
@@ -238,6 +271,71 @@ export class Services {
     await this.refreshDiagnostics()
   }
 
+  async authorizeGarmin(payload: {
+    email: string
+    password: string
+    domain?: GarminDomain
+    mfaCode?: string
+  }): Promise<{ mfaRequired: boolean }> {
+    if (!this.credentials) throw new Error('Configure first')
+    const email = payload.email.trim()
+    const domain = normalizeGarminDomain(payload.domain)
+    const mfaCode = payload.mfaCode?.trim()
+
+    let session: GarminSession | null = null
+    if (
+      mfaCode &&
+      this.pendingGarminMfa &&
+      this.pendingGarminMfa.email === email &&
+      this.pendingGarminMfa.domain === domain
+    ) {
+      session = await GarminUploader.completeMfa(this.pendingGarminMfa.challenge, mfaCode)
+    } else {
+      const result = await GarminUploader.login({
+        email,
+        password: payload.password,
+        domain,
+        ...(mfaCode ? { mfaCode } : {}),
+      })
+      if (result.kind === 'mfa-required') {
+        this.pendingGarminMfa = { email, domain, challenge: result.challenge }
+        return { mfaRequired: true }
+      }
+      session = result.session
+    }
+
+    await this.authorizeGarminSession(session)
+    return { mfaRequired: false }
+  }
+
+  async authorizeGarminSession(session: GarminSession): Promise<void> {
+    if (!this.credentials) throw new Error('Configure first')
+    const normalized = normalizeGarminSession(session)
+    const uploader = new GarminUploader({
+      getSession: async () => normalized,
+      ...(this.garminApiFetch ? { request: this.garminApiFetch } : {}),
+    })
+    const profile = await uploader.fetchProfile()
+    const stored: GarminSession = normalizeGarminSession({
+      ...normalized,
+      ...(profile.displayName ? { displayName: profile.displayName } : {}),
+      ...(profile.fullName ? { fullName: profile.fullName } : {}),
+      ...(profile.userName ? { userName: profile.userName } : {}),
+    })
+    await this.credentials.set(GARMIN_SESSION_KEY, JSON.stringify(stored))
+    this.garminUploader = this.buildGarminUploader(this.credentials)
+    this.pendingGarminMfa = null
+    await this.refreshDiagnostics()
+  }
+
+  async disconnectGarmin(): Promise<void> {
+    if (!this.credentials) throw new Error('Configure first')
+    await this.credentials.delete(GARMIN_SESSION_KEY)
+    this.garminUploader = null
+    this.pendingGarminMfa = null
+    await this.refreshDiagnostics()
+  }
+
   async getIntervalsTrainingLoad(
     days = 42,
     forecastDays = 0,
@@ -287,17 +385,55 @@ export class Services {
     }
   }
 
+  async syncTrainingPlanToGarmin(planId: string): Promise<{
+    overview: TrainingPlanOverview
+    result: GarminWorkoutSyncResult
+  }> {
+    if (!this.garminUploader || !this.credentials) throw new Error('请先连接 Garmin')
+    const session = await this.getGarminSession()
+    if (session?.domain !== GarminDomains.china) {
+      throw new Error('只有 Garmin 中国区登录态可以直接同步训练课程')
+    }
+
+    const overview = await this.plans.getOverview(planId, await this.getTrainingProjectionSeed())
+    if (overview.workouts.length === 0) throw new Error('计划里还没有可同步的训练')
+
+    const needsFtp = overview.workouts.some(workoutNeedsGarminFtp)
+    const needsMaxHeartRate = overview.workouts.some(workoutNeedsGarminMaxHeartRate)
+    const [ftpWatts, maxHeartRate] = await Promise.all([
+      needsFtp ? this.garminUploader.fetchCyclingFtp() : Promise.resolve(undefined),
+      needsMaxHeartRate ? this.garminUploader.fetchMaxHeartRate() : Promise.resolve(undefined),
+    ])
+    const items = overview.workouts.map((workout) =>
+      buildGarminWorkoutSyncItem(workout, { ftpWatts, maxHeartRate }),
+    )
+    const result = await this.garminUploader.syncPlannedWorkouts(items)
+    if (result.failed > 0 && result.failed === result.attempted) {
+      const first = result.workouts.find((workout) => workout.error)
+      throw new Error(first?.error ?? 'Garmin 训练课程同步失败')
+    }
+    return {
+      overview: await this.getTrainingPlanOverview(planId),
+      result,
+    }
+  }
+
   async setWatchDir(dir: string | null): Promise<void> {
     await saveSettings(this.paths.settingsPath, { shared: { watchDir: dir ?? undefined } })
     await this.restartTriggers()
     await this.refreshDiagnostics()
   }
 
-  async setSchedule(cron: string | null, timezone?: string): Promise<void> {
+  async setSchedule(
+    cron: string | null,
+    timezone?: string,
+    targets?: readonly AutoSyncTarget[],
+  ): Promise<void> {
     await saveSettings(this.paths.settingsPath, {
       shared: {
         scheduleCron: cron ?? undefined,
         scheduleTz: timezone ?? undefined,
+        ...(targets ? { scheduleTargets: normalizeAutoSyncTargets(targets) } : {}),
       },
     })
     await this.restartTriggers()
@@ -342,6 +478,17 @@ export class Services {
     return pipeline.handleAdapterPull({ since: daysAgo(7) })
   }
 
+  async runOnelapGarminImportOnce(): Promise<GarminImportOutcome[]> {
+    if (!this.garminUploader || !this.credentials) throw new Error('请先连接 Garmin')
+    const adapter = new OnelapApiAdapter({ credentials: this.credentials })
+    const pipeline = new GarminImportPipeline({
+      uploader: this.garminUploader,
+      store: this.store,
+      adapter,
+    })
+    return pipeline.handleAdapterPull({ since: daysAgo(7) })
+  }
+
   async getOnelapAccount(): Promise<string | null> {
     if (!this.credentials) return null
     return this.credentials.get(ONELAP_ACCOUNT_KEY)
@@ -356,6 +503,15 @@ export class Services {
     } catch {
       return undefined
     }
+  }
+
+  async getGarminDisplayName(): Promise<string | undefined> {
+    const session = await this.getGarminSession()
+    return session?.displayName ?? session?.fullName ?? session?.userName
+  }
+
+  async getGarminDomain(): Promise<GarminDomain | undefined> {
+    return (await this.getGarminSession())?.domain
   }
 
   async getStravaAthleteId(): Promise<number | undefined> {
@@ -396,11 +552,10 @@ export class Services {
     this.fileWatcher = null
     await this.scheduledTrigger?.stop()
     this.scheduledTrigger = null
-    if (!this.uploader) return
 
     const settings = await loadSettings(this.paths.settingsPath)
 
-    if (settings.shared.watchDir) {
+    if (settings.shared.watchDir && this.uploader) {
       const pipeline = new SyncPipeline({ uploader: this.uploader, store: this.store })
       this.fileWatcher = new FileWatcherTrigger({ paths: settings.shared.watchDir })
       await this.fileWatcher.start(async (event) => {
@@ -414,22 +569,59 @@ export class Services {
     }
 
     if (settings.shared.scheduleCron && this.credentials) {
-      const adapter = new OnelapApiAdapter({ credentials: this.credentials })
-      const pipeline = new SyncPipeline({
-        uploader: this.uploader,
-        store: this.store,
-        adapter,
-      })
+      const credentials = this.credentials
+      const targets = normalizeAutoSyncTargets(settings.shared.scheduleTargets)
       this.scheduledTrigger = new ScheduledTrigger({
         cron: settings.shared.scheduleCron,
         ...(settings.shared.scheduleTz ? { timezone: settings.shared.scheduleTz } : {}),
       })
       await this.scheduledTrigger.start(async (event) => {
-        try {
-          const outcomes = await pipeline.handle(event)
-          for (const o of outcomes) this.emit(o)
-        } catch (err) {
-          this.emitError('sync:schedule', err)
+        for (const target of targets) {
+          try {
+            if (target === AutoSyncTargets.strava) {
+              if (!this.uploader) throw new Error('请先连接 Strava')
+              const adapter = new OnelapApiAdapter({ credentials })
+              const pipeline = new SyncPipeline({
+                uploader: this.uploader,
+                store: this.store,
+                adapter,
+              })
+              const outcomes = await pipeline.handle(event)
+              for (const o of outcomes) this.emit(o)
+              continue
+            }
+
+            if (target === AutoSyncTargets.coros) {
+              if (!this.corosUploader) throw new Error('请先连接高驰 COROS')
+              const adapter = new OnelapApiAdapter({ credentials })
+              const pipeline = new CorosImportPipeline({
+                uploader: this.corosUploader,
+                store: this.store,
+                adapter,
+              })
+              const outcomes = await pipeline.handleAdapterPull()
+              for (const outcome of outcomes) {
+                if (outcome.kind === 'error') this.emitError('sync:schedule:coros', outcome.error)
+              }
+              continue
+            }
+
+            if (target === AutoSyncTargets.garmin) {
+              if (!this.garminUploader) throw new Error('请先连接 Garmin')
+              const adapter = new OnelapApiAdapter({ credentials })
+              const pipeline = new GarminImportPipeline({
+                uploader: this.garminUploader,
+                store: this.store,
+                adapter,
+              })
+              const outcomes = await pipeline.handleAdapterPull()
+              for (const outcome of outcomes) {
+                if (outcome.kind === 'error') this.emitError('sync:schedule:garmin', outcome.error)
+              }
+            }
+          } catch (err) {
+            this.emitError(`sync:schedule:${target}`, err)
+          }
         }
       })
     }
@@ -455,6 +647,17 @@ export class Services {
     }
   }
 
+  private async getGarminSession(): Promise<GarminSession | undefined> {
+    if (!this.credentials) return undefined
+    const raw = await this.credentials.get(GARMIN_SESSION_KEY)
+    if (!raw) return undefined
+    try {
+      return normalizeGarminSession(JSON.parse(raw) as GarminSession)
+    } catch {
+      return undefined
+    }
+  }
+
   private buildCorosUploader(credentials: CredentialStore): CorosUploader {
     return new CorosUploader({
       getSession: async () => {
@@ -462,6 +665,20 @@ export class Services {
         if (!raw) throw new Error('请先连接高驰 COROS')
         return JSON.parse(raw) as CorosSession
       },
+    })
+  }
+
+  private buildGarminUploader(credentials: CredentialStore): GarminUploader {
+    return new GarminUploader({
+      getSession: async () => {
+        const raw = await credentials.get(GARMIN_SESSION_KEY)
+        if (!raw) throw new Error('请先连接 Garmin')
+        return JSON.parse(raw) as GarminSession
+      },
+      saveSession: async (session) => {
+        await credentials.set(GARMIN_SESSION_KEY, JSON.stringify(normalizeGarminSession(session)))
+      },
+      ...(this.garminApiFetch ? { request: this.garminApiFetch } : {}),
     })
   }
 
@@ -551,6 +768,7 @@ export class Services {
           onelapCredentialsPresent: false,
           intervalsCredentialsPresent: false,
           corosCredentialsPresent: false,
+          garminCredentialsPresent: false,
           sharedConfigPresent: hasSharedConfig(settings),
         },
       }
@@ -562,11 +780,13 @@ export class Services {
       intervalsCredentialsPresent,
       onelapCredentialsPresent,
       corosCredentialsPresent,
+      garminCredentialsPresent,
     ] = await Promise.all([
       credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
       credentials.get(INTERVALS_API_KEY).then(Boolean),
       credentials.get(ONELAP_ACCOUNT_KEY).then(Boolean),
       credentials.get(COROS_SESSION_KEY).then(Boolean),
+      credentials.get(GARMIN_SESSION_KEY).then(Boolean),
     ])
 
     const diagnostics: ServiceDiagnostics = {
@@ -577,6 +797,7 @@ export class Services {
       intervalsCredentialsPresent,
       onelapCredentialsPresent,
       corosCredentialsPresent,
+      garminCredentialsPresent,
       sharedConfigPresent: hasSharedConfig(settings),
     }
 
@@ -609,6 +830,7 @@ export class Services {
       stravaTokensPresent,
       intervalsCredentialsPresent,
       corosCredentialsPresent,
+      garminCredentialsPresent,
     ] = await Promise.all([
       loadSettings(this.paths.settingsPath),
       this.isKeyringAvailable(),
@@ -617,6 +839,7 @@ export class Services {
       this.credentials.get(STRAVA_TOKENS_KEY).then(Boolean),
       this.credentials.get(INTERVALS_API_KEY).then(Boolean),
       this.credentials.get(COROS_SESSION_KEY).then(Boolean),
+      this.credentials.get(GARMIN_SESSION_KEY).then(Boolean),
     ])
 
     this.lastDiagnostics = {
@@ -626,6 +849,7 @@ export class Services {
       stravaTokensPresent,
       intervalsCredentialsPresent,
       corosCredentialsPresent,
+      garminCredentialsPresent,
       onelapCredentialsPresent: Boolean(await this.credentials.get(ONELAP_ACCOUNT_KEY)),
       sharedConfigPresent: hasSharedConfig(settings),
     }
@@ -673,6 +897,23 @@ function daysAgo(days: number): Date {
   return date
 }
 
+function normalizeAutoSyncTargets(
+  targets: readonly AutoSyncTarget[] | undefined,
+): AutoSyncTarget[] {
+  if (!targets || targets.length === 0) return [AutoSyncTargets.strava]
+  const normalized = targets.filter(isAutoSyncTarget)
+  const deduped = Array.from(new Set(normalized))
+  return deduped.length > 0 ? deduped : [AutoSyncTargets.strava]
+}
+
+function isAutoSyncTarget(value: unknown): value is AutoSyncTarget {
+  return (
+    value === AutoSyncTargets.strava ||
+    value === AutoSyncTargets.coros ||
+    value === AutoSyncTargets.garmin
+  )
+}
+
 function normalizeCorosSession(session: CorosSession): CorosSession {
   return {
     userId: session.userId.trim(),
@@ -685,4 +926,29 @@ function normalizeCorosSession(session: CorosSession): CorosSession {
 function normalizeCorosRegionId(regionId: CorosRegionId | undefined): CorosRegionId {
   if (regionId === CorosRegionIds.global || regionId === CorosRegionIds.europe) return regionId
   return CorosRegionIds.china
+}
+
+function normalizeGarminSession(session: GarminSession): GarminSession {
+  const diToken = session.diToken?.trim()
+  const jwtWeb = session.jwtWeb?.trim()
+  const webCookie = session.webCookie?.trim()
+  return {
+    domain: normalizeGarminDomain(session.domain),
+    ...(diToken ? { diToken } : {}),
+    ...(session.diRefreshToken?.trim() ? { diRefreshToken: session.diRefreshToken.trim() } : {}),
+    ...(session.diClientId?.trim() ? { diClientId: session.diClientId.trim() } : {}),
+    ...(jwtWeb ? { jwtWeb } : {}),
+    ...(webCookie ? { webCookie } : {}),
+    ...(session.csrfToken?.trim() ? { csrfToken: session.csrfToken.trim() } : {}),
+    ...(session.browserPartition?.trim()
+      ? { browserPartition: session.browserPartition.trim() }
+      : {}),
+    ...(session.displayName?.trim() ? { displayName: session.displayName.trim() } : {}),
+    ...(session.fullName?.trim() ? { fullName: session.fullName.trim() } : {}),
+    ...(session.userName?.trim() ? { userName: session.userName.trim() } : {}),
+  }
+}
+
+function normalizeGarminDomain(domain: GarminDomain | undefined): GarminDomain {
+  return domain === GarminDomains.global ? GarminDomains.global : GarminDomains.china
 }

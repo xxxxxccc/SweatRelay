@@ -1,6 +1,7 @@
 export type { CredentialStore } from './CredentialStore.ts'
 export {
   COROS_SESSION_KEY,
+  GARMIN_SESSION_KEY,
   INTERVALS_API_KEY,
   ONELAP_ACCOUNT_KEY,
   ONELAP_PASSWORD_KEY,

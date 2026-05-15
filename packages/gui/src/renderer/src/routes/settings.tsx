@@ -71,7 +71,7 @@ function Settings() {
           <AccordionContent>
             <div className="space-y-4 pl-7">
               <div className="space-y-1 text-sm text-fg-muted">
-                <p>SweatRelay 可以同步到 Strava，也可以把 Onelap 活动导入高驰 COROS。</p>
+                <p>SweatRelay 可以同步到 Strava，也可以把 Onelap 活动导入高驰 COROS 和 Garmin。</p>
                 <p>Intervals.icu 仍作为训练负荷数据源读取 CTL / ATL / TSB。</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-4">
@@ -84,6 +84,11 @@ function Settings() {
                   href="https://trainingcn.coros.com"
                   label="打开高驰"
                   desc="查看导入结果"
+                />
+                <ExternalLinkCard
+                  href="https://connect.garmin.cn/modern/activities"
+                  label="打开 Garmin"
+                  desc="查看导入活动"
                 />
                 <ExternalLinkCard
                   href="https://intervals.icu"
@@ -136,6 +141,10 @@ function Settings() {
               <DiagnosticItem
                 label="高驰登录态"
                 value={yesNo(status.diagnostics.corosCredentialsPresent)}
+              />
+              <DiagnosticItem
+                label="Garmin 登录态"
+                value={yesNo(status.diagnostics.garminCredentialsPresent)}
               />
               <DiagnosticItem
                 label="自动同步配置"

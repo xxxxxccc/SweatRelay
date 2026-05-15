@@ -16,6 +16,7 @@ export async function status(): Promise<void> {
   console.log(`Config dir:          ${paths.configDir}`)
   console.log(`Shared watch dir:    ${settings.shared.watchDir ?? '(disabled)'}`)
   console.log(`Scheduled sync:      ${settings.shared.scheduleCron ?? '(disabled)'}`)
+  console.log(`Scheduled targets:   ${(settings.shared.scheduleTargets ?? []).join(', ')}`)
   console.log(`Manual Onelap sync:  ${yesNo(manualSourceConfigured)}`)
   console.log(`Automatic sync:      ${yesNo(watchEnabled || scheduleEnabled)}`)
   console.log(`Only manual sync:    ${yesNo(onlyManualSync)}`)
@@ -23,6 +24,7 @@ export async function status(): Promise<void> {
   console.log(`Strava authorized:   ${yesNo(diagnostics.stravaTokensPresent)}`)
   console.log(`Intervals API key:   ${yesNo(diagnostics.intervalsCredentialsPresent)}`)
   console.log(`COROS session:       ${yesNo(diagnostics.corosCredentialsPresent)}`)
+  console.log(`Garmin session:      ${yesNo(diagnostics.garminCredentialsPresent)}`)
   console.log()
   console.log('Recent syncs:')
   if (records.length === 0) {
@@ -47,6 +49,7 @@ export async function doctor(): Promise<void> {
   console.log(`Intervals API key:        ${yesNo(diagnostics.intervalsCredentialsPresent)}`)
   console.log(`Onelap credentials:       ${yesNo(diagnostics.onelapCredentialsPresent)}`)
   console.log(`COROS session:            ${yesNo(diagnostics.corosCredentialsPresent)}`)
+  console.log(`Garmin session:           ${yesNo(diagnostics.garminCredentialsPresent)}`)
   console.log(`Automatic sync config:    ${yesNo(diagnostics.sharedConfigPresent)}`)
 }
 

@@ -2,6 +2,9 @@ export { dynamicRequire } from './dynamicRequire.ts'
 export {
   CorosApiError,
   DuplicateActivityError,
+  GarminApiError,
+  GarminDuplicateImportError,
+  GarminMfaRequiredError,
   RateLimitError,
   StravaApiError,
   SweatRelayError,

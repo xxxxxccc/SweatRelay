@@ -1,6 +1,10 @@
 import type {
+  AutoSyncTarget,
   CorosImportOutcome,
   CorosRegionId,
+  GarminDomain,
+  GarminImportOutcome,
+  GarminWorkoutSyncResult,
   IntervalsTrainingLoadReport,
   SyncOutcome,
   SyncRecord,
@@ -9,6 +13,8 @@ import type {
   UpdateTrainingPlanInput,
   UpsertPlannedWorkoutInput,
 } from '@sweatrelay/core'
+
+export type { AutoSyncTarget } from '@sweatrelay/core'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type AutoSyncMode = 'none' | 'watch' | 'schedule' | 'both'
@@ -22,6 +28,7 @@ export interface AppDiagnostics {
   intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
   corosCredentialsPresent: boolean
+  garminCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
 
@@ -36,14 +43,20 @@ export interface AppStatus {
   intervalsConnected: boolean
   corosConnected: boolean
   corosUserId?: string
+  garminConnected: boolean
+  garminDisplayName?: string
+  garminDomain?: GarminDomain
   onelapConnected: boolean
   onelapAccount?: string
   watchDir?: string
   scheduleCron?: string
+  scheduleTargets?: AutoSyncTarget[]
   autoSyncEnabled: boolean
   autoSyncMode: AutoSyncMode
   manualSyncAvailable: boolean
   corosManualSyncAvailable: boolean
+  garminManualSyncAvailable: boolean
+  garminTrainingPlanSyncAvailable: boolean
   trainingStatusEnabled: boolean
   trainingStatusRange: TrainingStatusRange
   theme: ThemePreference
@@ -77,6 +90,18 @@ export interface CorosAuthPayload {
   cookie?: string
 }
 
+export interface GarminAuthPayload {
+  email: string
+  password: string
+  domain?: GarminDomain
+  mfaCode?: string
+}
+
+export interface GarminAuthResult {
+  status: AppStatus
+  mfaRequired: boolean
+}
+
 export interface TrainingLoadPayload {
   days?: number
   forecastDays?: number
@@ -108,6 +133,11 @@ export interface SyncTrainingPlanResult {
   result: TrainingPlanSyncResult
 }
 
+export interface SyncGarminTrainingPlanResult {
+  overview: TrainingPlanOverview
+  result: GarminWorkoutSyncResult
+}
+
 export interface SetWatchDirPayload {
   /** Directory path; pass null to clear. */
   dir: string | null
@@ -117,6 +147,7 @@ export interface SetSchedulePayload {
   /** 5-field cron, or null to disable. */
   cron: string | null
   timezone?: string
+  targets?: AutoSyncTarget[]
 }
 
 export interface SetThemePayload {
@@ -138,6 +169,8 @@ export interface SweatRelayApi {
   authOnelap(payload: OnelapAuthPayload): Promise<IpcResult<AppStatus>>
   authIntervals(payload: IntervalsAuthPayload): Promise<IpcResult<AppStatus>>
   authCoros(payload: CorosAuthPayload): Promise<IpcResult<AppStatus>>
+  authGarmin(payload: GarminAuthPayload): Promise<IpcResult<GarminAuthResult>>
+  disconnectGarmin(): Promise<IpcResult<AppStatus>>
   trainingLoad(payload?: TrainingLoadPayload): Promise<IpcResult<IntervalsTrainingLoadReport>>
   setTrainingStatus(payload: SetTrainingStatusPayload): Promise<IpcResult<AppStatus>>
   trainingPlan(payload?: TrainingPlanPayload): Promise<IpcResult<TrainingPlanOverview>>
@@ -149,11 +182,15 @@ export interface SweatRelayApi {
     payload: DeletePlannedWorkoutPayload,
   ): Promise<IpcResult<TrainingPlanOverview>>
   syncTrainingPlan(payload: SyncTrainingPlanPayload): Promise<IpcResult<SyncTrainingPlanResult>>
+  syncTrainingPlanToGarmin(
+    payload: SyncTrainingPlanPayload,
+  ): Promise<IpcResult<SyncGarminTrainingPlanResult>>
   setWatchDir(payload: SetWatchDirPayload): Promise<IpcResult<AppStatus>>
   setSchedule(payload: SetSchedulePayload): Promise<IpcResult<AppStatus>>
   setTheme(payload: SetThemePayload): Promise<IpcResult<AppStatus>>
   syncOnelap(): Promise<IpcResult<SyncOutcome[]>>
   syncOnelapToCoros(): Promise<IpcResult<CorosImportOutcome[]>>
+  syncOnelapToGarmin(): Promise<IpcResult<GarminImportOutcome[]>>
   pickDirectory(): Promise<IpcResult<string | null>>
   /** Subscribe to live sync events (file watcher / scheduled). Returns an unsubscribe fn. */
   onSyncEvent(handler: (outcome: SyncOutcome) => void): () => void
@@ -167,6 +204,8 @@ export const IPC_CHANNELS = {
   authOnelap: 'sweatrelay:authOnelap',
   authIntervals: 'sweatrelay:authIntervals',
   authCoros: 'sweatrelay:authCoros',
+  authGarmin: 'sweatrelay:authGarmin',
+  disconnectGarmin: 'sweatrelay:disconnectGarmin',
   trainingLoad: 'sweatrelay:trainingLoad',
   setTrainingStatus: 'sweatrelay:setTrainingStatus',
   trainingPlan: 'sweatrelay:trainingPlan',
@@ -174,11 +213,13 @@ export const IPC_CHANNELS = {
   upsertPlannedWorkout: 'sweatrelay:upsertPlannedWorkout',
   deletePlannedWorkout: 'sweatrelay:deletePlannedWorkout',
   syncTrainingPlan: 'sweatrelay:syncTrainingPlan',
+  syncTrainingPlanToGarmin: 'sweatrelay:syncTrainingPlanToGarmin',
   setWatchDir: 'sweatrelay:setWatchDir',
   setSchedule: 'sweatrelay:setSchedule',
   setTheme: 'sweatrelay:setTheme',
   syncOnelap: 'sweatrelay:syncOnelap',
   syncOnelapToCoros: 'sweatrelay:syncOnelapToCoros',
+  syncOnelapToGarmin: 'sweatrelay:syncOnelapToGarmin',
   pickDirectory: 'sweatrelay:pickDirectory',
   syncEvent: 'sweatrelay:syncEvent',
 } as const

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AutoSyncTargets,
   INTERVALS_API_KEY,
   mergePersistedSettings,
   normalizePersistedSettings,
@@ -28,6 +29,7 @@ describe('persisted settings', () => {
         watchDir: '/tmp/rides',
         scheduleCron: '*/30 * * * *',
         scheduleTz: 'Asia/Shanghai',
+        scheduleTargets: [AutoSyncTargets.strava],
       },
       gui: {
         theme: 'dark',
@@ -44,6 +46,7 @@ describe('persisted settings', () => {
           v: 1,
           shared: {
             watchDir: '/tmp/rides',
+            scheduleTargets: [AutoSyncTargets.strava],
           },
           gui: {
             theme: 'system',
@@ -65,6 +68,7 @@ describe('persisted settings', () => {
       shared: {
         watchDir: '/tmp/rides',
         scheduleCron: '0 * * * *',
+        scheduleTargets: [AutoSyncTargets.strava],
       },
       gui: {
         theme: 'light',
@@ -72,6 +76,18 @@ describe('persisted settings', () => {
         trainingStatusRange: 'current',
       },
     })
+  })
+
+  it('normalizes scheduled sync targets and removes unsupported values', () => {
+    expect(
+      normalizePersistedSettings({
+        v: 1,
+        shared: {
+          scheduleCron: '*/30 * * * *',
+          scheduleTargets: ['strava', 'garmin', 'garmin', 'unknown'],
+        },
+      }).shared.scheduleTargets,
+    ).toEqual([AutoSyncTargets.strava, AutoSyncTargets.garmin])
   })
 
   it('reads legacy Strava app config from old settings files', () => {

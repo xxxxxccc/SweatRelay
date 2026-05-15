@@ -1,17 +1,18 @@
 # SweatRelay
 
-把骑行活动、训练计划和训练负荷放在一个本地控制台里处理：同步国内平台数据到 Strava / 高驰 COROS，在本地编排未来训练，并把计划写回 Intervals.icu。
+把骑行活动、训练计划和训练负荷放在一个本地控制台里处理：同步国内平台数据到 Strava / 高驰 COROS / Garmin，在本地编排未来训练，并把计划写回 Intervals.icu。
 
 [![CI](https://github.com/xxxxxccc/SweatRelay/actions/workflows/ci.yml/badge.svg)](https://github.com/xxxxxccc/SweatRelay/actions/workflows/ci.yml)
 
 ## 它能做什么
 
-- **Onelap → Strava / 高驰 COROS**：用账号密码自动拉取近期骑行，并可一键导入高驰
+- **Onelap → Strava / 高驰 COROS / Garmin**：用账号密码自动拉取近期骑行，并可一键导入或定时同步到勾选的平台
 - **任意码表 → Strava**：监控一个文件夹，新增的 FIT/GPX/TCX 自动上传
-- **定时拉取**：GUI 里挑频率（每 15 分钟 / 每小时…）；CLI 支持 cron 表达式
+- **定时拉取**：GUI 里挑频率和同步目标（Strava / COROS / Garmin），每日预设为 23:30；CLI 支持 cron 表达式
 - **训练计划编排**：在 GUI 里按周安排训练课，支持 FTP% / 最大心率% 强度、重复步骤、复制/粘贴课程和每周负荷统计
 - **Intervals.icu 集成**：读取 CTL / ATL / TSB / Ramp，按本地规则判断训练强度，并把 planned workouts 同步到 Intervals.icu calendar
 - **高驰导入**：生成与 COROS Training Hub Web 一致的 FIT/ZIP 导入包，上传后在高驰侧解析
+- **Garmin 导入**：登录 Garmin Connect 后，把 Onelap FIT 直接写入 Garmin Connect 活动列表；中国区登录态还可直接同步本地训练课程
 - **同步控制台**：GUI 和 CLI 共享同一套本地配置、凭证、同步历史和本地训练计划
 - **重复检测**：本地 hash + Strava 服务端 `external_id` 双保险，重复上传不会真重复
 - **加密存储**：所有连接信息用 AES-256-GCM + scrypt 加密在本地（支持 OS 钥匙串）
@@ -110,17 +111,18 @@ sweatrelay doctor
 
 ### 3. GUI 用法
 
-启动后跟着引导走：填本地加密密码 + Strava 凭证 → 授权 Strava → 配置 Onelap 账号或选 watch 目录 → 连接 Intervals.icu / 高驰（可选）→ 看 Dashboard。
+启动后跟着引导走：填本地加密密码 + Strava 凭证 → 授权 Strava → 配置 Onelap 账号或选 watch 目录 → 连接 Intervals.icu / 高驰 / Garmin（可选）→ 看 Dashboard。
 
 GUI 现在按“训练同步控制台”来设计：
 
 - `Strava` 负责官方 OAuth 上传活动文件
 - `高驰 COROS` 负责把 Onelap 活动导入 COROS Training Hub
+- `Garmin` 负责把 Onelap 活动导入 Garmin Connect 活动列表；中国区可把本地训练课程直接同步到 Garmin
 - `Intervals.icu` 用来读取训练负荷，并接收 SweatRelay 本地编排的未来训练计划
-- `文件夹监控` 和 `定时同步` 都属于后台自动同步
+- `文件夹监控` 和 `定时同步` 都属于后台自动同步；定时同步可以只勾选需要的目标平台，每日预设是 23:30，避免夜间训练还没结束就开始同步
 - `训练计划` 页可以按周编排未来课程，实时估算时长、TSS、IF、周负荷和未来最低 TSB
 - `训练负荷` 页显示 CTL（体能）、ATL（疲劳）、TSB（状态）、Ramp（增长率），并结合本地计划判断当前训练强度是否偏高
-- 如果文件夹监控和定时同步都没启用，右上角的 `同步 Strava` / `导入高驰` 就是当前手动同步方式
+- 如果文件夹监控和定时同步都没启用，右上角的 `同步 Strava`，以及数据源页里的 `导入高驰` / `导入 Garmin` 就是当前手动同步方式
 
 如果你也使用 `Intervals.icu`，推荐路径是：
 
@@ -130,6 +132,8 @@ GUI 现在按“训练同步控制台”来设计：
 4. 在 SweatRelay 的 `数据源` 页保存 Intervals.icu API key
 5. 在 SweatRelay 的 `训练计划` 页编排未来训练，点击 `同步 ICU` 写入 Intervals.icu calendar
 6. 在 `训练负荷` 页查看 CTL / ATL / TSB 和未来计划风险
+
+如果你使用 Garmin 中国区，也可以在 `数据源` 页连接 Garmin 后直接点击 `同步训练课程`，把本地训练计划写入 Garmin Connect。这样不需要先让 Intervals.icu 绑定 Garmin。
 
 强度判断分两层：
 
@@ -143,6 +147,7 @@ GUI 现在按“训练同步控制台”来设计：
 - **优先官方开放平台**
 - **没有官方接口的品牌**（如 Onelap，2026-03 后失去官方 Strava 通道）使用社区已知的私有接口；同时**始终提供文件导入兜底**
 - **高驰导入目前是实验能力**：复用 COROS Training Hub Web 的导入链路，不逆向 App 内部加密；如果 Web 接口变化，仍保留 FIT/ZIP 文件导入兜底
+- **Garmin 导入目前是实验能力**：复用 Garmin Connect 的 Web/移动端上传链路，导入记录按 Garmin 区域隔离；如果登录或上传接口变化，仍可下载 FIT 后走 Garmin 官方手动导入兜底
 
 每个 adapter 都标注来源类型（official / file-import / reverse-engineered），见各 adapter README。
 
@@ -166,11 +171,12 @@ packages/
 - `Activity` — 标准化数据模型（FIT 忠实）
 - `StravaUploader` — 上传 + 异步轮询 + 限流退避 + 重复检测
 - `CorosUploader` — 生成 COROS Web 导入包，上传到临时对象存储并登记导入任务
+- `GarminUploader` — 登录 Garmin Connect 并上传 FIT/TCX 导入文件
 - `IntervalsClient` — 读取 Intervals.icu wellness / calendar 数据，并批量写入 planned workouts
 - `TrainingPlanStore` — 本地 SQLite 训练计划、训练课和步骤结构
 - `Trigger` — 三种实现：`ManualTrigger` / `ScheduledTrigger`(cron) / `FileWatcherTrigger`(chokidar)
 - `CredentialStore` — `EncryptedFileCredentialStore`(AES-GCM + scrypt) / `MemoryCredentialStore`(测试)
-- `SyncPipeline` / `CorosImportPipeline` — 编排 trigger → adapter → upload/import → record
+- `SyncPipeline` / `CorosImportPipeline` / `GarminImportPipeline` — 编排 trigger → adapter → upload/import → record
 
 **CLI 与 GUI 共享同一份 core，也共享同一套本地配置、凭证与同步历史**。CLI 是薄壳（cac framework），GUI 是 Electron main 进程跑 core + React 19 渲染层（TanStack Router 文件路由 + Jotai 共享状态 + Tailwind v4 + shadcn/ui + Race Telemetry 视觉风格）。
 

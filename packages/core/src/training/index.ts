@@ -12,6 +12,16 @@ export {
   normalizeWorkoutSteps,
   projectTrainingLoad,
 } from './calculations.ts'
+export {
+  buildGarminWorkoutSyncItem,
+  type GarminPlannedWorkoutSyncItem,
+  type GarminWorkoutDefinition,
+  type GarminWorkoutSegment,
+  type GarminWorkoutStep,
+  type GarminWorkoutTargetContext,
+  workoutNeedsGarminFtp,
+  workoutNeedsGarminMaxHeartRate,
+} from './garmin.ts'
 export { TrainingPlanStore, type TrainingPlanStoreOptions } from './TrainingPlanStore.ts'
 export {
   type CreateTrainingPlanInput,

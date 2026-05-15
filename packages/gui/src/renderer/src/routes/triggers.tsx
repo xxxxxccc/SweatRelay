@@ -1,12 +1,14 @@
+import type { AppStatus, AutoSyncTarget } from '@shared/ipc.ts'
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Eye, FolderOpen, Power, Timer } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SectionHeading } from '@/components/SectionHeading'
 import { StatusDot } from '@/components/StatusDot'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { refreshStatusAtom, statusAtom } from '@/state/status'
@@ -23,7 +25,7 @@ function Triggers() {
       />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <WatchLane current={status.watchDir} />
-        <ScheduleLane current={status.scheduleCron} />
+        <ScheduleLane status={status} />
       </div>
     </div>
   )
@@ -166,20 +168,73 @@ const FREQUENCIES: ReadonlyArray<FrequencyPreset> = [
   { cron: '*/15 * * * *', label: '每 15 分钟', desc: '骑得勤、要尽快上传时' },
   { cron: '*/30 * * * *', label: '每 30 分钟', desc: '推荐 · 平衡及时性和资源占用' },
   { cron: '0 * * * *', label: '每小时整点', desc: '一天好几次但不急' },
-  { cron: '0 22 * * *', label: '每天晚上 22:00', desc: '当天骑完晚上再统一同步' },
+  { cron: '30 23 * * *', label: '每天晚上 23:30', desc: '避开夜间训练还没结束的情况' },
 ]
 
-function ScheduleLane({ current }: { current?: string }) {
+const SCHEDULE_TARGETS = {
+  strava: 'strava',
+  coros: 'coros',
+  garmin: 'garmin',
+} as const satisfies Record<string, AutoSyncTarget>
+
+interface ScheduleTargetOption {
+  id: AutoSyncTarget
+  label: string
+  desc: string
+  available: boolean
+  unavailable: string
+}
+
+function ScheduleLane({ status }: { status: AppStatus }) {
   const refresh = useSetAtom(refreshStatusAtom)
+  const current = status.scheduleCron
   const initialPreset = current ?? '*/30 * * * *'
+  const scheduleTargets = useMemo(
+    () => normalizeScheduleTargets(status.scheduleTargets),
+    [status.scheduleTargets],
+  )
   const [selected, setSelected] = useState(initialPreset)
+  const [selectedTargets, setSelectedTargets] = useState<AutoSyncTarget[]>(scheduleTargets)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const targetOptions = buildScheduleTargetOptions(status)
+
+  useEffect(() => {
+    setSelected(current ?? '*/30 * * * *')
+  }, [current])
+
+  useEffect(() => {
+    setSelectedTargets(scheduleTargets)
+  }, [scheduleTargets])
+
+  function toggleTarget(target: AutoSyncTarget, checked: boolean) {
+    const option = targetOptions.find((item) => item.id === target)
+    if (!option?.available && checked) return
+    setSelectedTargets((currentTargets) => {
+      if (checked) return Array.from(new Set([...currentTargets, target]))
+      return currentTargets.filter((item) => item !== target)
+    })
+  }
 
   async function save() {
+    const unavailableTargets = selectedTargets
+      .map((target) => targetOptions.find((option) => option.id === target))
+      .filter((target): target is ScheduleTargetOption => target !== undefined && !target.available)
+    if (unavailableTargets.length > 0) {
+      setErr(`请先连接或取消选择：${unavailableTargets.map((target) => target.label).join(' / ')}`)
+      return
+    }
+    if (selectedTargets.length === 0) {
+      setErr('至少选择一个已连接的平台')
+      return
+    }
     setBusy(true)
     setErr(null)
-    const res = await api.setSchedule({ cron: selected, timezone: 'Asia/Shanghai' })
+    const res = await api.setSchedule({
+      cron: selected,
+      timezone: 'Asia/Shanghai',
+      targets: selectedTargets,
+    })
     setBusy(false)
     if (!res.ok) {
       setErr(res.error.message)
@@ -237,6 +292,53 @@ function ScheduleLane({ current }: { current?: string }) {
           })}
         </div>
 
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-micro uppercase tracking-stamp-mono text-fg-subtle">
+              同步目标
+            </span>
+            <span className="font-mono text-micro text-fg-subtle">
+              {selectedTargets.length}/{targetOptions.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            {targetOptions.map((target) => {
+              const checked = selectedTargets.includes(target.id)
+              return (
+                <div
+                  key={target.id}
+                  className={cn(
+                    'flex cursor-pointer items-start gap-3 rounded-md border bg-bg/40 p-3 transition-colors',
+                    checked && target.available
+                      ? 'border-accent/70 bg-accent/5'
+                      : 'border-border hover:border-border-strong',
+                    !target.available && 'cursor-not-allowed opacity-55 hover:border-border',
+                  )}
+                >
+                  <Checkbox
+                    checked={checked}
+                    disabled={busy || (!target.available && !checked)}
+                    onCheckedChange={(value) => toggleTarget(target.id, value === true)}
+                    aria-label={`同步到 ${target.label}`}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="font-display text-base uppercase leading-none text-fg">
+                        {target.label}
+                      </span>
+                      <StatusDot tone={target.available ? 'success' : 'idle'} />
+                    </span>
+                    <span className="mt-1 block text-xs text-fg-subtle">
+                      {target.available ? target.desc : target.unavailable}
+                    </span>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
         {err ? (
           <Alert variant="destructive">
             <AlertDescription>{err}</AlertDescription>
@@ -258,6 +360,38 @@ function ScheduleLane({ current }: { current?: string }) {
       </div>
     </LaneChrome>
   )
+}
+
+function normalizeScheduleTargets(
+  targets: readonly AutoSyncTarget[] | undefined,
+): AutoSyncTarget[] {
+  return targets && targets.length > 0 ? [...targets] : [SCHEDULE_TARGETS.strava]
+}
+
+function buildScheduleTargetOptions(status: AppStatus): ScheduleTargetOption[] {
+  return [
+    {
+      id: SCHEDULE_TARGETS.strava,
+      label: 'Strava',
+      desc: '把 Onelap 新活动上传到 Strava',
+      available: status.manualSyncAvailable,
+      unavailable: '先连接 Onelap 和 Strava',
+    },
+    {
+      id: SCHEDULE_TARGETS.coros,
+      label: 'COROS',
+      desc: '把 Onelap 新活动导入高驰',
+      available: status.corosManualSyncAvailable,
+      unavailable: '先连接 Onelap 和高驰',
+    },
+    {
+      id: SCHEDULE_TARGETS.garmin,
+      label: 'Garmin',
+      desc: '把 Onelap 新活动导入 Garmin Connect',
+      available: status.garminManualSyncAvailable,
+      unavailable: '先连接 Onelap 和 Garmin',
+    },
+  ]
 }
 
 export const Route = createFileRoute('/triggers')({ component: Triggers })

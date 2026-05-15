@@ -5,6 +5,7 @@ import {
   COROS_SESSION_KEY,
   type CredentialStore,
   EncryptedFileCredentialStore,
+  GARMIN_SESSION_KEY,
   INTERVALS_API_KEY,
   KeyringCredentialStore,
   MirroredCredentialStore,
@@ -38,6 +39,7 @@ export interface CliDiagnostics {
   intervalsCredentialsPresent: boolean
   onelapCredentialsPresent: boolean
   corosCredentialsPresent: boolean
+  garminCredentialsPresent: boolean
   sharedConfigPresent: boolean
 }
 
@@ -227,21 +229,26 @@ export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostic
   let intervalsCredentialsPresent = false
   let onelapCredentialsPresent = false
   let corosCredentialsPresent = false
+  let garminCredentialsPresent = false
   if (credentials) {
     ;[storedClientId, storedClientSecret] = await Promise.all([
       credentials.get(STRAVA_CLIENT_ID_KEY),
       credentials.get(STRAVA_CLIENT_SECRET_KEY),
     ])
-    const [tokens, intervalsApiKey, onelapAccount, corosSession] = await Promise.all([
-      credentials.get(STRAVA_TOKENS_KEY),
-      credentials.get(INTERVALS_API_KEY),
-      credentials.get(ONELAP_ACCOUNT_KEY),
-      credentials.get(COROS_SESSION_KEY),
-    ])
+    const [tokens, intervalsApiKey, onelapAccount, corosSession, garminSession] = await Promise.all(
+      [
+        credentials.get(STRAVA_TOKENS_KEY),
+        credentials.get(INTERVALS_API_KEY),
+        credentials.get(ONELAP_ACCOUNT_KEY),
+        credentials.get(COROS_SESSION_KEY),
+        credentials.get(GARMIN_SESSION_KEY),
+      ],
+    )
     stravaTokensPresent = Boolean(tokens)
     intervalsCredentialsPresent = Boolean(intervalsApiKey)
     onelapCredentialsPresent = Boolean(onelapAccount)
     corosCredentialsPresent = Boolean(corosSession)
+    garminCredentialsPresent = Boolean(garminSession)
   }
 
   return {
@@ -255,6 +262,7 @@ export async function collectDiagnostics(paths: CliPaths): Promise<CliDiagnostic
     intervalsCredentialsPresent,
     onelapCredentialsPresent,
     corosCredentialsPresent,
+    garminCredentialsPresent,
     sharedConfigPresent: Boolean(settings.shared.watchDir || settings.shared.scheduleCron),
   }
 }

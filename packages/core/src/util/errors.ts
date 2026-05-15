@@ -30,6 +30,32 @@ export class CorosApiError extends SweatRelayError {
   }
 }
 
+export class GarminApiError extends SweatRelayError {
+  readonly status: number
+  readonly body?: unknown
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message)
+    this.status = status
+    if (body !== undefined) this.body = body
+  }
+}
+
+export class GarminMfaRequiredError extends SweatRelayError {
+  constructor() {
+    super('Garmin MFA code is required')
+  }
+}
+
+export class GarminDuplicateImportError extends SweatRelayError {
+  readonly activityId?: string
+
+  constructor(message: string, activityId?: string) {
+    super(message)
+    if (activityId !== undefined) this.activityId = activityId
+  }
+}
+
 export class UploadTimeoutError extends SweatRelayError {
   readonly uploadId: string
 

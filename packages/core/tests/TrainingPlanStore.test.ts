@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  buildGarminWorkoutSyncItem,
   buildIntervalsWorkoutEvent,
   buildWorkoutDescription,
   defaultWorkoutSteps,
@@ -126,6 +127,70 @@ describe('TrainingPlanStore', () => {
 - Interval 2m 110%
 - Recovery 2m 60%`)
     expect(workout.durationSeconds).toBe(2400)
+  })
+
+  it('maps local repeat workouts to Garmin workout-service payloads', async () => {
+    const overview = await store.getOverview()
+    const workout = await store.upsertWorkout({
+      planId: overview.plan.id,
+      date: overview.plan.startDate,
+      name: 'VO2 repeats',
+      steps: [],
+      structure: [
+        {
+          type: WorkoutStructureItemTypes.Step,
+          step: {
+            kind: WorkoutStepKinds.Warmup,
+            durationSeconds: 600,
+            targetLow: 65,
+          },
+        },
+        {
+          type: WorkoutStructureItemTypes.Repeat,
+          repeat: 3,
+          steps: [
+            {
+              kind: WorkoutStepKinds.Interval,
+              durationSeconds: 120,
+              targetLow: 110,
+            },
+            {
+              kind: WorkoutStepKinds.Recovery,
+              durationSeconds: 120,
+              targetLow: 60,
+            },
+          ],
+        },
+      ],
+    })
+
+    const item = buildGarminWorkoutSyncItem(workout, { ftpWatts: 200 })
+    const segment = item.workout.workoutSegments[0]
+    const repeat = segment?.workoutSteps[1]
+
+    expect(item).toMatchObject({
+      localId: workout.id,
+      externalId: workout.externalId,
+      date: workout.date,
+      workout: {
+        workoutName: 'VO2 repeats',
+        sportType: { sportTypeKey: 'cycling' },
+      },
+    })
+    expect(item.workout.description).toContain(`SweatRelay ID: ${workout.externalId}`)
+    expect(segment?.workoutSteps[0]).toMatchObject({
+      type: 'ExecutableStepDTO',
+      targetValueOne: 130,
+      targetValueTwo: 130,
+    })
+    expect(repeat).toMatchObject({
+      type: 'RepeatGroupDTO',
+      numberOfIterations: 3,
+      workoutSteps: [
+        { targetType: { workoutTargetTypeKey: 'power.zone' }, targetValueOne: 220 },
+        { targetType: { workoutTargetTypeKey: 'power.zone' }, targetValueOne: 120 },
+      ],
+    })
   })
 
   it('maps heart-rate targets to Intervals.icu workout text', async () => {

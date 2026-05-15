@@ -11,7 +11,7 @@
 # This project ships only macOS Apple Silicon (and Windows via install.ps1).
 # Intel Mac and Linux are not in the published release matrix.
 class Sweatrelay < Formula
-  desc "Bridge Chinese cycling platforms (Onelap, etc.) to Strava"
+  desc "Bridge Chinese cycling platforms to Strava, COROS, Garmin, and Intervals.icu"
   homepage "https://github.com/xxxxxccc/SweatRelay"
   version "0.1.0" # patched by release workflow
   license "MIT"
